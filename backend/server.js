@@ -718,7 +718,7 @@ api.get(
       params.push(clean(req.query.seller_id));
     }
     const result = await paginate(req, {
-      sel: "p.*, u.store_name, u.phone seller_phone, u.address seller_address, u.lat seller_lat, u.lng seller_lng",
+      sel: "p.*, u.store_name, u.phone seller_phone, u.address seller_address, u.lat seller_lat, u.lng seller_lng, u.lat, u.lng",
       from: "products p JOIN users u ON u.id=p.seller_id",
       where,
       params,
@@ -742,7 +742,7 @@ api.get(
   optionalGuard,
   h(async (req, res) => {
     const p = await one(
-      "SELECT p.*, u.store_name, u.phone seller_phone, u.address seller_address, u.lat seller_lat, u.lng seller_lng FROM products p JOIN users u ON u.id=p.seller_id WHERE p.id=?",
+      "SELECT p.*, u.store_name, u.phone seller_phone, u.address seller_address, u.lat seller_lat, u.lng seller_lng, u.lat, u.lng FROM products p JOIN users u ON u.id=p.seller_id WHERE p.id=?",
       [req.params.id],
     );
     if (!p) throw fail(404, "Produk tidak ditemukan");
@@ -920,10 +920,14 @@ api.post(
     const buyer = await one("SELECT balance FROM users WHERE id=?", [
       req.user.id,
     ]);
-    if (buyer.balance <= 0)
-      throw fail(400, "Saldo Anda 0. Silakan topup terlebih dahulu");
-    if (buyer.balance < total)
-      throw fail(400, "Saldo tidak mencukupi untuk pesanan ini");
+    const buyerBalance = Number(buyer?.balance || 0);
+    if (buyerBalance <= 0)
+      throw fail(400, "Saldo Anda Rp 0. Silakan topup terlebih dahulu");
+    if (buyerBalance < total)
+      throw fail(
+        400,
+        `Saldo tidak mencukupi untuk pesanan ini. Total tagihan: Rp ${total.toLocaleString("id-ID")} (Subtotal: Rp ${subtotal.toLocaleString("id-ID")} + Ongkir kurir ${dist} km: Rp ${shipping.toLocaleString("id-ID")}), sedangkan saldo Anda saat ini: Rp ${buyerBalance.toLocaleString("id-ID")}`
+      );
     const c = await pool.getConnection();
     try {
       await c.beginTransaction();

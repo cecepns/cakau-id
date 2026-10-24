@@ -47,10 +47,22 @@ export default function Shop() {
     }
   };
 
-  const distanceKm = p && f.lat !== "" && f.lng !== "" && p.lat != null && p.lng != null
-    ? calcKm(+p.lat, +p.lng, +f.lat, +f.lng)
+  const sellerLat = p?.seller_lat ?? p?.lat;
+  const sellerLng = p?.seller_lng ?? p?.lng;
+  const hasCoords =
+    sellerLat != null &&
+    sellerLng != null &&
+    f.lat !== "" &&
+    f.lng !== "" &&
+    !isNaN(+sellerLat) &&
+    !isNaN(+sellerLng) &&
+    !isNaN(+f.lat) &&
+    !isNaN(+f.lng);
+
+  const distanceKm = hasCoords
+    ? Math.round(calcKm(+sellerLat, +sellerLng, +f.lat, +f.lng) * 100) / 100
     : 0;
-  const subtotal = p ? p.price * qty : 0;
+  const subtotal = p ? Number(p.price) * qty : 0;
   const shippingCost = distanceKm > 0 ? Math.round(distanceKm * (settings.price_per_km || 3000)) : 0;
   const grandTotal = subtotal + shippingCost;
   const noBalance = Number(user.balance) <= 0;
@@ -60,7 +72,10 @@ export default function Shop() {
     e.preventDefault();
     if (f.lat === "" || f.lng === "") return toast.error("Atur lokasi pengiriman dengan tombol GPS");
     if (noBalance) return toast.error("Saldo Anda Rp0. Silakan topup terlebih dahulu");
-    if (isBalanceInsufficient) return toast.error("Saldo tidak mencukupi untuk menyelesaikan pesanan ini");
+    if (isBalanceInsufficient)
+      return toast.error(
+        `Saldo tidak cukup. Total tagihan: ${rupiah(grandTotal)} (Termasuk ongkir kurir ${distanceKm} km: ${rupiah(shippingCost)}), saldo Anda saat ini: ${rupiah(user.balance)}`
+      );
 
     setBusy(true);
     const res = await request("post", API_ENDPOINTS.ORDERS, { ...f, items: [{ product_id: p.id, qty }] });

@@ -87,12 +87,23 @@ export default function ProductDetail() {
     }
   };
 
-  // Distance & cost calculations
-  const distanceKm =
-    product && orderForm.lat !== "" && orderForm.lng !== "" && product.lat != null && product.lng != null
-      ? calcKm(+product.lat, +product.lng, +orderForm.lat, +orderForm.lng)
-      : 0;
-  const subtotal = product ? product.price * qty : 0;
+  // Distance & cost calculations (using seller_lat/seller_lng returned by API)
+  const sellerLat = product?.seller_lat ?? product?.lat;
+  const sellerLng = product?.seller_lng ?? product?.lng;
+  const hasCoords =
+    sellerLat != null &&
+    sellerLng != null &&
+    orderForm.lat !== "" &&
+    orderForm.lng !== "" &&
+    !isNaN(+sellerLat) &&
+    !isNaN(+sellerLng) &&
+    !isNaN(+orderForm.lat) &&
+    !isNaN(+orderForm.lng);
+
+  const distanceKm = hasCoords
+    ? Math.round(calcKm(+sellerLat, +sellerLng, +orderForm.lat, +orderForm.lng) * 100) / 100
+    : 0;
+  const subtotal = product ? Number(product.price) * qty : 0;
   const shippingCost = distanceKm > 0 ? Math.round(distanceKm * (settings.price_per_km || 3000)) : 0;
   const grandTotal = subtotal + shippingCost;
   const hasZeroBalance = user?.role === "buyer" && Number(user?.balance || 0) <= 0;
@@ -108,11 +119,16 @@ export default function ProductDetail() {
     if (user.role !== "buyer") {
       return toast.error("Hanya akun Pembeli yang dapat melakukan pemesanan");
     }
+    if (orderForm.lat === "" || orderForm.lng === "") {
+      return toast.error("Titik koordinat GPS pengiriman wajib diisi. Silakan klik 'Gunakan Titik Lokasi GPS Saya'");
+    }
     if (hasZeroBalance) {
       return toast.error("Saldo Anda Rp0. Silakan topup terlebih dahulu");
     }
     if (isBalanceInsufficient) {
-      return toast.error("Saldo Anda tidak mencukupi untuk menyelesaikan pesanan ini");
+      return toast.error(
+        `Saldo tidak cukup. Total tagihan: ${rupiah(grandTotal)} (Termasuk ongkir kurir ${distanceKm} km: ${rupiah(shippingCost)}), saldo Anda saat ini: ${rupiah(user?.balance || 0)}`
+      );
     }
     if (!orderForm.lat || !orderForm.lng) {
       return toast.error("Tentukan titik lokasi pengiriman dengan tombol GPS");
@@ -454,12 +470,34 @@ export default function ProductDetail() {
                     </div>
                     <div className="flex justify-between text-slate-600">
                       <span>Jarak Pengiriman Kurir</span>
-                      <span className="font-bold">{distanceKm > 0 ? `${distanceKm} km` : "Belum ditentukan"}</span>
+                      <span className="font-bold">
+                        {distanceKm > 0
+                          ? `${distanceKm} km`
+                          : !orderForm.lat || !orderForm.lng
+                          ? "Atur GPS Anda"
+                          : "0 km"}
+                      </span>
                     </div>
                     <div className="flex justify-between text-slate-600">
-                      <span>Ongkir Kurir ({distanceKm > 0 ? `${distanceKm} km × ${rupiah(settings.price_per_km)}` : "Atur GPS"})</span>
+                      <span>
+                        Ongkir Kurir (
+                        {distanceKm > 0
+                          ? `${distanceKm} km × ${rupiah(settings.price_per_km || 3000)}`
+                          : "Belum dihitung"}
+                        )
+                      </span>
                       <span className="font-bold">{rupiah(shippingCost)}</span>
                     </div>
+
+                    {distanceKm > 50 && (
+                      <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-[11px] text-amber-800 flex items-start gap-2 leading-relaxed">
+                        <AlertCircle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                        <span>
+                          <strong>Perhatian Jarak Jauh:</strong> Jarak toko ke lokasi Anda adalah <strong>{distanceKm} km</strong>, sehingga biaya ongkir kurir disesuaikan ({rupiah(shippingCost)}).
+                        </span>
+                      </div>
+                    )}
+
                     <div className="border-t border-slate-200 pt-2 flex justify-between font-black text-slate-900 text-sm sm:text-base">
                       <span>Total Biaya</span>
                       <span className="text-brand-700">{rupiah(grandTotal)}</span>
