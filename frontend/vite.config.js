@@ -13,6 +13,7 @@ export default defineConfig({
         name: "Cakau ID", short_name: "Cakau", start_url: "/", display: "standalone",
         background_color: "#ffffff", theme_color: "#0f766e",
         icons: [
+          { src: "/logo.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
           { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" },
         ],
       },
