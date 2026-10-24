@@ -1,0 +1,11 @@
+node_modules
+dist
+build
+.cache
+*.log
+.env
+.DS_Store
+.idea
+.vscode
+backend/uploads-cakau-id/*
+!backend/uploads-cakau-id/.gitkeep

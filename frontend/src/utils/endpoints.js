@@ -1,0 +1,21 @@
+export const API_ENDPOINTS = {
+  AUTH: { LOGIN: "/auth/login", REGISTER: "/auth/register", PROFILE: "/auth/profile" },
+  SETTINGS: "/settings",
+  ADMIN: {
+    SETTINGS: "/admin/settings",
+    CONTACT: "/admin/contact",
+    USERS: "/admin/users",
+    USER_STATUS: (id) => `/admin/users/${id}/status`,
+    TOPUP_ACCOUNTS: "/admin/topup-accounts",
+    TOPUP_ACCOUNT: (id) => `/admin/topup-accounts/${id}`,
+    TOPUP_REVIEW: (id) => `/admin/topups/${id}`,
+    WITHDRAWAL_REVIEW: (id) => `/admin/withdrawals/${id}`,
+  },
+  TOPUP_ACCOUNTS: "/topup-accounts",
+  TOPUPS: "/topups",
+  WITHDRAWALS: "/withdrawals",
+  PRODUCTS: "/products",
+  PRODUCT: (id) => `/products/${id}`,
+  ORDERS: "/orders",
+  ORDER_ACTION: (id) => `/orders/${id}/action`,
+};
