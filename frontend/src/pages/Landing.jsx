@@ -244,7 +244,7 @@ export default function Landing() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-14">
             <span className="inline-block rounded-full bg-brand-100 px-3.5 py-1 text-xs font-bold text-brand-700 mb-2.5">
-              4 Peran Terintegrasi
+              3 Peran Terintegrasi
             </span>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
               Ekosistem Transaksi Cakau ID
@@ -254,7 +254,7 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {/* Pembeli */}
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-3.5 hover:shadow-md transition">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-teal-50 text-brand-700 font-black text-lg">
@@ -317,28 +317,6 @@ export default function Landing() {
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={16} className="text-sky-600 mt-0.5 shrink-0" />
                   <span>Unggah foto bukti tiba untuk menerima ongkir ke saldo kurir.</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Admin */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-3.5 hover:shadow-md transition">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-700 font-black text-lg">
-                4
-              </div>
-              <h3 className="text-lg font-bold text-slate-900">Administrator</h3>
-              <ul className="space-y-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 size={16} className="text-amber-600 mt-0.5 shrink-0" />
-                  <span>Atur persentase fee penjualan dan tarif kurir per kilometer.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 size={16} className="text-amber-600 mt-0.5 shrink-0" />
-                  <span>Kelola rekening tujuan topup dan verifikasi permohonan.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 size={16} className="text-amber-600 mt-0.5 shrink-0" />
-                  <span>Setujui pencairan saldo (withdrawal) dan kelola pengguna.</span>
                 </li>
               </ul>
             </div>
