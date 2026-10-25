@@ -8,6 +8,7 @@ import {
   Menu,
   X,
   Search,
+  MessageCircle,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { rupiah } from "@/utils/format";
@@ -59,6 +60,14 @@ export default function PublicNavbar({ onSearch, searchValue }) {
         <div className="hidden sm:flex items-center gap-3">
           {user ? (
             <div className="flex items-center gap-3">
+              <Link
+                to="/chats"
+                title="Pesan & Chat"
+                className="flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-700 hover:text-brand-700 hover:border-brand-200 hover:bg-brand-50 transition shadow-2xs"
+                aria-label="Chat"
+              >
+                <MessageCircle size={18} />
+              </Link>
               {user.role !== "admin" && (
                 <Link
                   to="/topups"
@@ -161,13 +170,23 @@ export default function PublicNavbar({ onSearch, searchValue }) {
                   </span>
                   <span>{rupiah(user.balance)}</span>
                 </div>
-                <Link
-                  to={DASHBOARD_PATHS[user.role] || "/orders"}
-                  onClick={() => setMobileOpen(false)}
-                  className="btn-primary w-full !py-3 text-sm font-bold rounded-xl text-center"
-                >
-                  Buka Panel {user.role}
-                </Link>
+                <div className="grid grid-cols-2 gap-2">
+                  <Link
+                    to="/chats"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-bold text-slate-800 shadow-2xs"
+                  >
+                    <MessageCircle size={16} className="text-brand-600" />
+                    <span>Pesan & Chat</span>
+                  </Link>
+                  <Link
+                    to={DASHBOARD_PATHS[user.role] || "/orders"}
+                    onClick={() => setMobileOpen(false)}
+                    className="btn-primary !py-2.5 text-xs font-bold rounded-xl text-center"
+                  >
+                    <span>Buka Panel</span>
+                  </Link>
+                </div>
                 <button
                   onClick={() => {
                     setMobileOpen(false);

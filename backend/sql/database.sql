@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
   balance DECIMAL(15,0) NOT NULL DEFAULT 0,
   store_name VARCHAR(120) NULL,
   address VARCHAR(255) NULL,
+  operational_hours VARCHAR(100) NULL,
   lat DECIMAL(10,7) NULL,
   lng DECIMAL(10,7) NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -54,6 +55,7 @@ CREATE TABLE IF NOT EXISTS products (
   name VARCHAR(160) NOT NULL,
   price DECIMAL(15,0) NOT NULL,
   stock INT NOT NULL DEFAULT 0,
+  operational_hours VARCHAR(100) NULL,
   description MEDIUMTEXT NULL,
   images JSON NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -100,6 +102,42 @@ CREATE TABLE IF NOT EXISTS order_items (
   qty INT NOT NULL,
   FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
   INDEX idx_order_items_order (order_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS conversations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  buyer_id INT NOT NULL,
+  seller_id INT NOT NULL,
+  last_message TEXT NULL,
+  last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  unread_buyer INT DEFAULT 0,
+  unread_seller INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_buyer_seller (buyer_id, seller_id),
+  FOREIGN KEY (buyer_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_conversations_buyer (buyer_id),
+  INDEX idx_conversations_seller (seller_id),
+  INDEX idx_conversations_last_at (last_message_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  conversation_id INT NOT NULL,
+  sender_id INT NOT NULL,
+  receiver_id INT NOT NULL,
+  product_id INT NULL,
+  message TEXT NOT NULL,
+  is_read TINYINT(1) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+  FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL,
+  INDEX idx_chat_messages_conv (conversation_id),
+  INDEX idx_chat_messages_sender (sender_id),
+  INDEX idx_chat_messages_receiver (receiver_id),
+  INDEX idx_chat_messages_created (created_at)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS topup_accounts (

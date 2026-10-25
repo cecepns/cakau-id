@@ -17,6 +17,7 @@ import Withdrawals from "@/pages/Withdrawals";
 import Orders from "@/pages/Orders";
 import Products from "@/pages/seller/Products";
 import Store from "@/pages/seller/Store";
+import Chats from "@/pages/Chats";
 
 const HOME = {
   admin: "/users",
@@ -33,6 +34,7 @@ const ROUTES = [
   ["/topups", Topups, ["admin", "buyer"]],
   ["/withdrawals", Withdrawals, ["admin", "seller", "courier"]],
   ["/orders", Orders, ["admin", "seller", "courier", "buyer"]],
+  ["/chats", Chats, ["admin", "seller", "buyer"]],
   ["/seller/products", Products, ["seller"]],
   ["/store", Store, ["seller"]],
 ];

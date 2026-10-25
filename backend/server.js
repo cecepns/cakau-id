@@ -128,7 +128,7 @@ const sign = (u) =>
     expiresIn: "7d",
   });
 const PUBLIC =
-  "id,name,email,phone,role,status,balance,store_name,address,lat,lng";
+  "id,name,email,phone,role,status,balance,store_name,address,operational_hours,lat,lng";
 const guard =
   (...roles) =>
   async (req, res, next) => {
@@ -333,7 +333,7 @@ api.put(
   "/auth/profile",
   guard(),
   h(async (req, res) => {
-    const { name, phone, store_name, address, lat, lng } = req.body;
+    const { name, phone, store_name, address, operational_hours, lat, lng } = req.body;
     if (!PHONE.test(normPhone(phone)))
       throw fail(400, "Nomor WhatsApp tidak valid");
     if (
@@ -346,12 +346,13 @@ api.put(
     )
       throw fail(400, "Nama toko dan lokasi GPS wajib diisi");
     await q(
-      "UPDATE users SET name=?,phone=?,store_name=?,address=?,lat=?,lng=? WHERE id=?",
+      "UPDATE users SET name=?,phone=?,store_name=?,address=?,operational_hours=?,lat=?,lng=? WHERE id=?",
       [
         clean(name) || req.user.name,
         normPhone(phone),
         clean(store_name) || null,
         clean(address) || null,
+        clean(operational_hours) || null,
         req.user.role === "seller" ? lat : null,
         req.user.role === "seller" ? lng : null,
         req.user.id,
@@ -1005,7 +1006,7 @@ api.get(
       params.push(clean(req.query.category));
     }
     const result = await paginate(req, {
-      sel: "p.*, u.store_name, u.phone seller_phone, u.address seller_address, u.lat seller_lat, u.lng seller_lng, u.lat, u.lng, c.name category_name, c.slug category_slug",
+      sel: "p.*, u.store_name, u.phone seller_phone, u.address seller_address, u.operational_hours seller_operational_hours, u.lat seller_lat, u.lng seller_lng, u.lat, u.lng, c.name category_name, c.slug category_slug",
       from: "products p JOIN users u ON u.id=p.seller_id LEFT JOIN categories c ON c.id=p.category_id",
       where,
       params,
@@ -1036,7 +1037,7 @@ api.get(
   optionalGuard,
   h(async (req, res) => {
     const p = await one(
-      "SELECT p.*, u.store_name, u.phone seller_phone, u.address seller_address, u.lat seller_lat, u.lng seller_lng, u.lat, u.lng, c.name category_name, c.slug category_slug FROM products p JOIN users u ON u.id=p.seller_id LEFT JOIN categories c ON c.id=p.category_id WHERE p.id=?",
+      "SELECT p.*, u.store_name, u.phone seller_phone, u.address seller_address, u.operational_hours seller_operational_hours, u.lat seller_lat, u.lng seller_lng, u.lat, u.lng, c.name category_name, c.slug category_slug FROM products p JOIN users u ON u.id=p.seller_id LEFT JOIN categories c ON c.id=p.category_id WHERE p.id=?",
       [req.params.id],
     );
     if (!p) throw fail(404, "Produk tidak ditemukan");
@@ -1050,14 +1051,14 @@ api.get(
   }),
 );
 const productBody = async (req) => {
-  const { name, price, stock, description, category_id } = req.body;
+  const { name, price, stock, operational_hours, description, category_id } = req.body;
   if (clean(name).length < 2) throw fail(400, "Nama produk wajib diisi");
   if (num(price) < 100) throw fail(400, "Harga tidak valid");
   const catId = num(category_id);
   if (!catId) throw fail(400, "Kategori produk wajib dipilih");
   const cat = await one("SELECT id FROM categories WHERE id=?", [catId]);
   if (!cat) throw fail(400, "Kategori produk yang dipilih tidak ditemukan");
-  return [clean(name), num(price), num(stock), rich(description), catId];
+  return [clean(name), num(price), num(stock), clean(operational_hours) || null, rich(description), catId];
 };
 const needStore = (req) => {
   if (!req.user.store_name || req.user.lat == null)
@@ -1072,7 +1073,7 @@ api.post(
     const b = await productBody(req);
     if (!req.files?.length) throw fail(400, "Minimal 1 gambar produk");
     await q(
-      "INSERT INTO products (seller_id,name,price,stock,description,category_id,images) VALUES (?,?,?,?,?,?,?)",
+      "INSERT INTO products (seller_id,name,price,stock,operational_hours,description,category_id,images) VALUES (?,?,?,?,?,?,?,?)",
       [req.user.id, ...b, JSON.stringify(req.files.map(url))],
     );
     res.json({ success: true });
@@ -1101,7 +1102,7 @@ api.put(
     const imgs = [...keep, ...(req.files || []).map(url)].slice(0, 5);
     if (!imgs.length) throw fail(400, "Minimal 1 gambar produk");
     await q(
-      "UPDATE products SET name=?,price=?,stock=?,description=?,category_id=?,images=? WHERE id=?",
+      "UPDATE products SET name=?,price=?,stock=?,operational_hours=?,description=?,category_id=?,images=? WHERE id=?",
       [...b, JSON.stringify(imgs), p.id],
     );
     res.json({ success: true });
@@ -1407,6 +1408,334 @@ api.patch(
   }),
 );
 
+/* ---------- Chats (Direct Messaging Buyer-Seller) ---------- */
+api.post(
+  "/chats/start",
+  guard(),
+  h(async (req, res) => {
+    const { seller_id, product_id, message } = req.body;
+    const sellerId = num(seller_id);
+    if (!sellerId) throw fail(400, "ID penjual wajib diisi");
+    if (sellerId === req.user.id)
+      throw fail(400, "Tidak bisa mengirim pesan ke akun sendiri");
+
+    const seller = await one(
+      "SELECT id, name, store_name, phone, role FROM users WHERE id=?",
+      [sellerId],
+    );
+    if (!seller) throw fail(404, "Penjual tidak ditemukan");
+
+    // Check existing conversation between these 2 users
+    let conv = await one(
+      "SELECT * FROM conversations WHERE (buyer_id=? AND seller_id=?) OR (buyer_id=? AND seller_id=?)",
+      [req.user.id, sellerId, sellerId, req.user.id],
+    );
+
+    if (!conv) {
+      const [resIns] = await pool.query(
+        "INSERT INTO conversations (buyer_id, seller_id, last_message, unread_buyer, unread_seller) VALUES (?, ?, ?, ?, ?)",
+        [
+          req.user.id,
+          sellerId,
+          clean(message) || "Memulai percakapan baru",
+          0,
+          clean(message) ? 1 : 0,
+        ],
+      );
+      conv = await one("SELECT * FROM conversations WHERE id=?", [
+        resIns.insertId,
+      ]);
+    }
+
+    if (clean(message)) {
+      const prodId = num(product_id) || null;
+      await q(
+        "INSERT INTO chat_messages (conversation_id, sender_id, receiver_id, product_id, message) VALUES (?, ?, ?, ?, ?)",
+        [conv.id, req.user.id, sellerId, prodId, clean(message)],
+      );
+      const isSenderBuyer = req.user.id === conv.buyer_id;
+      await q(
+        `UPDATE conversations SET last_message=?, last_message_at=NOW(), ${
+          isSenderBuyer
+            ? "unread_seller=unread_seller+1"
+            : "unread_buyer=unread_buyer+1"
+        } WHERE id=?`,
+        [clean(message), conv.id],
+      );
+    }
+
+    res.json({ success: true, data: conv });
+  }),
+);
+
+api.get(
+  "/chats",
+  guard(),
+  h(async (req, res) => {
+    const page = Math.max(1, +req.query.page || 1);
+    const limit = [10, 25, 50, 100].includes(+req.query.limit)
+      ? +req.query.limit
+      : 20;
+    const s = clean(req.query.search);
+    const searchCondition = s
+      ? "AND (b.name LIKE ? OR s.name LIKE ? OR s.store_name LIKE ? OR c.last_message LIKE ?)"
+      : "";
+    const searchParams = s ? [`%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`] : [];
+
+    const countRow = await one(
+      `SELECT COUNT(*) total FROM conversations c 
+       JOIN users b ON b.id = c.buyer_id 
+       JOIN users s ON s.id = c.seller_id 
+       WHERE (c.buyer_id=? OR c.seller_id=?) ${searchCondition}`,
+      [req.user.id, req.user.id, ...searchParams],
+    );
+    const total = countRow?.total || 0;
+
+    const rows = await q(
+      `SELECT c.*, 
+        b.id buyer_id, b.name buyer_name, b.phone buyer_phone, b.role buyer_role,
+        s.id seller_id, s.name seller_name, s.store_name, s.phone seller_phone, s.role seller_role
+       FROM conversations c
+       JOIN users b ON b.id = c.buyer_id
+       JOIN users s ON s.id = c.seller_id
+       WHERE (c.buyer_id=? OR c.seller_id=?) ${searchCondition}
+       ORDER BY c.last_message_at DESC
+       LIMIT ? OFFSET ?`,
+      [req.user.id, req.user.id, ...searchParams, limit, (page - 1) * limit],
+    );
+
+    const data = rows.map((r) => {
+      const isBuyer = req.user.id === r.buyer_id;
+      const otherUser = isBuyer
+        ? {
+            id: r.seller_id,
+            name: r.store_name || r.seller_name,
+            phone: r.seller_phone,
+            role: r.seller_role,
+            store_name: r.store_name,
+          }
+        : {
+            id: r.buyer_id,
+            name: r.buyer_name,
+            phone: r.buyer_phone,
+            role: r.buyer_role,
+            store_name: null,
+          };
+      const unreadCount = isBuyer ? r.unread_buyer : r.unread_seller;
+      return {
+        id: r.id,
+        buyer_id: r.buyer_id,
+        seller_id: r.seller_id,
+        last_message: r.last_message,
+        last_message_at: r.last_message_at,
+        unread_count: unreadCount,
+        other_user: otherUser,
+      };
+    });
+
+    res.json({
+      success: true,
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    });
+  }),
+);
+
+api.get(
+  "/chats/unread-count",
+  guard(),
+  h(async (req, res) => {
+    const row = await one(
+      `SELECT 
+        COALESCE(SUM(CASE WHEN buyer_id=? THEN unread_buyer ELSE unread_seller END), 0) total
+       FROM conversations 
+       WHERE buyer_id=? OR seller_id=?`,
+      [req.user.id, req.user.id, req.user.id],
+    );
+    res.json({ success: true, unread: Number(row?.total || 0) });
+  }),
+);
+
+api.get(
+  "/chats/:id",
+  guard(),
+  h(async (req, res) => {
+    const c = await one(
+      `SELECT c.*, 
+        b.name buyer_name, b.phone buyer_phone, b.role buyer_role,
+        s.name seller_name, s.store_name, s.phone seller_phone, s.role seller_role
+       FROM conversations c
+       JOIN users b ON b.id = c.buyer_id
+       JOIN users s ON s.id = c.seller_id
+       WHERE c.id=? AND (c.buyer_id=? OR c.seller_id=?)`,
+      [req.params.id, req.user.id, req.user.id],
+    );
+    if (!c) throw fail(404, "Percakapan tidak ditemukan");
+    const isBuyer = req.user.id === c.buyer_id;
+    const otherUser = isBuyer
+      ? {
+          id: c.seller_id,
+          name: c.store_name || c.seller_name,
+          phone: c.seller_phone,
+          role: c.seller_role,
+          store_name: c.store_name,
+        }
+      : {
+          id: c.buyer_id,
+          name: c.buyer_name,
+          phone: c.buyer_phone,
+          role: c.buyer_role,
+          store_name: null,
+        };
+
+    res.json({
+      success: true,
+      data: {
+        ...c,
+        other_user: otherUser,
+        unread_count: isBuyer ? c.unread_buyer : c.unread_seller,
+      },
+    });
+  }),
+);
+
+api.get(
+  "/chats/:id/messages",
+  guard(),
+  h(async (req, res) => {
+    const conv = await one(
+      "SELECT * FROM conversations WHERE id=? AND (buyer_id=? OR seller_id=?)",
+      [req.params.id, req.user.id, req.user.id],
+    );
+    if (!conv) throw fail(404, "Percakapan tidak ditemukan");
+
+    // Mark messages as read for receiver
+    await q(
+      "UPDATE chat_messages SET is_read=1 WHERE conversation_id=? AND receiver_id=? AND is_read=0",
+      [conv.id, req.user.id],
+    );
+    if (req.user.id === conv.buyer_id && conv.unread_buyer > 0) {
+      await q("UPDATE conversations SET unread_buyer=0 WHERE id=?", [conv.id]);
+    } else if (req.user.id === conv.seller_id && conv.unread_seller > 0) {
+      await q("UPDATE conversations SET unread_seller=0 WHERE id=?", [conv.id]);
+    }
+
+    const messages = await q(
+      `SELECT m.*, p.name product_name, p.price product_price, p.images product_images
+       FROM chat_messages m
+       LEFT JOIN products p ON p.id = m.product_id
+       WHERE m.conversation_id=?
+       ORDER BY m.created_at ASC`,
+      [conv.id],
+    );
+
+    const formatted = messages.map((m) => {
+      let pImages = [];
+      try {
+        pImages =
+          typeof m.product_images === "string"
+            ? JSON.parse(m.product_images)
+            : m.product_images || [];
+      } catch {}
+      return {
+        id: m.id,
+        conversation_id: m.conversation_id,
+        sender_id: m.sender_id,
+        receiver_id: m.receiver_id,
+        message: m.message,
+        is_read: !!m.is_read,
+        created_at: m.created_at,
+        product: m.product_id
+          ? {
+              id: m.product_id,
+              name: m.product_name,
+              price: m.product_price,
+              image:
+                Array.isArray(pImages) && pImages.length ? pImages[0] : null,
+            }
+          : null,
+      };
+    });
+
+    res.json({ success: true, data: formatted });
+  }),
+);
+
+api.post(
+  "/chats/:id/messages",
+  guard(),
+  h(async (req, res) => {
+    const { message, product_id } = req.body;
+    if (!clean(message)) throw fail(400, "Pesan tidak boleh kosong");
+
+    const conv = await one(
+      "SELECT * FROM conversations WHERE id=? AND (buyer_id=? OR seller_id=?)",
+      [req.params.id, req.user.id, req.user.id],
+    );
+    if (!conv) throw fail(404, "Percakapan tidak ditemukan");
+
+    const receiverId =
+      req.user.id === conv.buyer_id ? conv.seller_id : conv.buyer_id;
+    const isSenderBuyer = req.user.id === conv.buyer_id;
+    const prodId = num(product_id) || null;
+
+    const [resIns] = await pool.query(
+      "INSERT INTO chat_messages (conversation_id, sender_id, receiver_id, product_id, message) VALUES (?, ?, ?, ?, ?)",
+      [conv.id, req.user.id, receiverId, prodId, clean(message)],
+    );
+
+    await q(
+      `UPDATE conversations SET last_message=?, last_message_at=NOW(), ${
+        isSenderBuyer
+          ? "unread_seller=unread_seller+1"
+          : "unread_buyer=unread_buyer+1"
+      } WHERE id=?`,
+      [clean(message), conv.id],
+    );
+
+    let product = null;
+    if (prodId) {
+      const p = await one(
+        "SELECT id, name, price, images FROM products WHERE id=?",
+        [prodId],
+      );
+      if (p) {
+        let pImages = [];
+        try {
+          pImages =
+            typeof p.images === "string" ? JSON.parse(p.images) : p.images || [];
+        } catch {}
+        product = {
+          id: p.id,
+          name: p.name,
+          price: p.price,
+          image:
+            Array.isArray(pImages) && pImages.length ? pImages[0] : null,
+        };
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: resIns.insertId,
+        conversation_id: conv.id,
+        sender_id: req.user.id,
+        receiver_id: receiverId,
+        message: clean(message),
+        is_read: false,
+        created_at: new Date().toISOString(),
+        product,
+      },
+    });
+  }),
+);
+
 app.use((e, _req, res, _next) =>
   res
     .status(400)
@@ -1432,6 +1761,40 @@ app.use((e, _req, res, _next) =>
     await q(
       "ALTER TABLE products ADD INDEX IF NOT EXISTS idx_products_category (category_id)",
     );
+    await q(
+      "ALTER TABLE products ADD COLUMN IF NOT EXISTS operational_hours VARCHAR(100) NULL",
+    );
+    await q(
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS operational_hours VARCHAR(100) NULL",
+    );
+    await q(`CREATE TABLE IF NOT EXISTS conversations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      buyer_id INT NOT NULL,
+      seller_id INT NOT NULL,
+      last_message TEXT NULL,
+      last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      unread_buyer INT DEFAULT 0,
+      unread_seller INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_buyer_seller (buyer_id, seller_id),
+      INDEX idx_conversations_buyer (buyer_id),
+      INDEX idx_conversations_seller (seller_id),
+      INDEX idx_conversations_last_at (last_message_at)
+    ) ENGINE=InnoDB`);
+    await q(`CREATE TABLE IF NOT EXISTS chat_messages (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      conversation_id INT NOT NULL,
+      sender_id INT NOT NULL,
+      receiver_id INT NOT NULL,
+      product_id INT NULL,
+      message TEXT NOT NULL,
+      is_read TINYINT(1) DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_chat_messages_conv (conversation_id),
+      INDEX idx_chat_messages_sender (sender_id),
+      INDEX idx_chat_messages_receiver (receiver_id),
+      INDEX idx_chat_messages_created (created_at)
+    ) ENGINE=InnoDB`);
     const defaults = [
       ["Makanan / Jajanan", "makanan-jajanan"],
       ["UMKM", "umkm"],

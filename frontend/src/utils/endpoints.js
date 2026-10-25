@@ -26,4 +26,11 @@ export const API_ENDPOINTS = {
   PRODUCT: (id) => `/products/${id}`,
   ORDERS: "/orders",
   ORDER_ACTION: (id) => `/orders/${id}/action`,
+  CHATS: {
+    LIST: "/chats",
+    DETAIL: (id) => `/chats/${id}`,
+    MESSAGES: (id) => `/chats/${id}/messages`,
+    START: "/chats/start",
+    UNREAD_COUNT: "/chats/unread-count",
+  },
 };

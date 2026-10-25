@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import ReactQuill from "react-quill";
 import toast from "react-hot-toast";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Clock, Pencil, Plus, Trash2 } from "lucide-react";
 import usePaginated from "@/hooks/usePaginated";
 import DataTable from "@/components/DataTable";
 import ImagePicker from "@/components/ImagePicker";
@@ -18,6 +18,7 @@ const EMPTY = {
   category_id: "",
   price: "",
   stock: "",
+  operational_hours: "",
   description: "",
   images: [],
 };
@@ -48,8 +49,17 @@ export default function Products() {
   const open = (p) => {
     setForm(
       p
-        ? { ...p, category_id: p.category_id || "", images: p.images || [] }
-        : EMPTY,
+        ? {
+            ...p,
+            category_id: p.category_id || "",
+            images: p.images || [],
+            operational_hours:
+              p.operational_hours || user.operational_hours || "",
+          }
+        : {
+            ...EMPTY,
+            operational_hours: user.operational_hours || "",
+          },
     );
     setFiles([]);
   };
@@ -66,6 +76,7 @@ export default function Products() {
       category_id: form.category_id,
       price: form.price,
       stock: form.stock,
+      operational_hours: form.operational_hours,
       description: form.description,
       keep: JSON.stringify(form.images),
       images: files,
@@ -106,6 +117,12 @@ export default function Products() {
           />
           <div>
             <p className="font-medium">{p.name}</p>
+            {p.operational_hours && (
+              <p className="flex items-center gap-1 text-[11px] text-emerald-700 font-semibold mt-0.5">
+                <Clock size={11} className="shrink-0" />
+                <span>{p.operational_hours}</span>
+              </p>
+            )}
             <p className="line-clamp-1 max-w-xs text-xs text-slate-500">
               {stripHtml(p.description)}
             </p>
@@ -216,6 +233,13 @@ export default function Products() {
                 required
               />
             </div>
+            <Field
+              label="Jam Operasional Toko"
+              value={form.operational_hours || ""}
+              onChange={set("operational_hours")}
+              placeholder="Contoh: 08:00 - 21:00 WIB (Senin - Sabtu)"
+              hint="Jam operasional toko untuk produk ini agar pembeli mengetahui estimasi waktu pesanan diproses."
+            />
             <Field label="Gambar (maks. 5)">
               <ImagePicker
                 multiple

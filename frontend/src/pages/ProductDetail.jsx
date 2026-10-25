@@ -14,21 +14,22 @@ import {
   CheckCircle2,
   Package,
   Tag,
+  Clock,
 } from "lucide-react";
 import PublicNavbar from "@/components/PublicNavbar";
 import PublicFooter from "@/components/PublicFooter";
+import ChatModal from "@/components/ChatModal";
 import {
   Spinner,
   Button,
   Field,
   getPosition,
-  WhatsAppIcon,
 } from "@/components/ui";
 import { useAuth } from "@/context/AuthContext";
 import { api, FILE_URL } from "@/utils/api";
 import { request } from "@/utils/request";
 import { API_ENDPOINTS } from "@/utils/endpoints";
-import { rupiah, calcKm, waLink } from "@/utils/format";
+import { rupiah, calcKm } from "@/utils/format";
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -39,6 +40,7 @@ export default function ProductDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeImg, setActiveImg] = useState(0);
+  const [chatOpen, setChatOpen] = useState(false);
 
   // Settings for shipping rate
   const [settings, setSettings] = useState({
@@ -172,6 +174,21 @@ export default function ProductDetail() {
       toast.success("Pesanan berhasil dibuat! Menunggu konfirmasi toko.");
       nav("/orders");
     }
+  };
+
+  const handleStartChat = () => {
+    if (!user) {
+      toast.error(
+        "Silakan masuk (login) terlebih dahulu untuk chat dengan penjual",
+      );
+      nav("/login");
+      return;
+    }
+    if (user.id === product.seller_id) {
+      toast.error("Ini adalah produk dari toko Anda sendiri");
+      return;
+    }
+    setChatOpen(true);
   };
 
   if (loading) {
@@ -313,22 +330,28 @@ export default function ProductDetail() {
                     </p>
                   </div>
                 </div>
-                {product.seller_phone && (
-                  <a
-                    href={waLink(
-                      product.seller_phone,
-                      `Halo ${product.store_name || "Kak"}, saya ingin bertanya seputar produk ${product.name} di Cakau ID: ${window.location.href}`,
-                    )}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 transition shadow-2xs shrink-0 self-start sm:self-auto w-full sm:w-auto"
-                    title="Hubungi penjual melalui WhatsApp"
-                  >
-                    <WhatsAppIcon size={16} />
-                    <span>WhatsApp Toko</span>
-                  </a>
-                )}
+                <button
+                  type="button"
+                  onClick={handleStartChat}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50 px-3.5 py-2 text-xs font-bold text-brand-800 hover:bg-brand-100 hover:border-brand-300 transition shadow-2xs shrink-0 self-start sm:self-auto w-full sm:w-auto cursor-pointer"
+                  title="Chat dengan penjual produk ini"
+                >
+                  <MessageCircle size={16} className="text-brand-600" />
+                  <span>Chat Penjual</span>
+                </button>
               </div>
+
+              {(product.operational_hours ||
+                product.seller_operational_hours) && (
+                <div className="flex items-center gap-2 text-xs text-slate-600">
+                  <Clock size={15} className="text-brand-600 shrink-0" />
+                  <span>
+                    <strong className="text-slate-800">Jam Operasional:</strong>{" "}
+                    {product.operational_hours ||
+                      product.seller_operational_hours}
+                  </span>
+                </div>
+              )}
 
               {product.seller_address && (
                 <div className="flex items-start gap-2 text-xs text-slate-600">
@@ -348,8 +371,8 @@ export default function ProductDetail() {
           <div className="lg:col-span-7 space-y-5 sm:space-y-6 min-w-0">
             {/* Title & Price Header */}
             <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 lg:p-8 shadow-sm space-y-3">
-              {product.category_name && (
-                <div>
+              <div className="flex flex-wrap items-center gap-2">
+                {product.category_name && (
                   <Link
                     to={`/products?category=${product.category_slug || ""}`}
                     className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700 hover:bg-brand-100 transition"
@@ -357,8 +380,18 @@ export default function ProductDetail() {
                     <Tag size={12} />
                     <span>{product.category_name}</span>
                   </Link>
-                </div>
-              )}
+                )}
+                {(product.operational_hours ||
+                  product.seller_operational_hours) && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-bold text-emerald-800">
+                    <Clock size={12} className="text-emerald-600" />
+                    <span>
+                      {product.operational_hours ||
+                        product.seller_operational_hours}
+                    </span>
+                  </span>
+                )}
+              </div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-900 leading-snug break-words">
                 {product.name}
               </h1>
@@ -663,6 +696,20 @@ export default function ProductDetail() {
           </div>
         </div>
       </main>
+
+      {product && (
+        <ChatModal
+          open={chatOpen}
+          onClose={() => setChatOpen(false)}
+          seller={{
+            id: product.seller_id,
+            name: product.seller_name,
+            store_name: product.store_name,
+            phone: product.seller_phone,
+          }}
+          product={product}
+        />
+      )}
 
       <PublicFooter />
     </div>
