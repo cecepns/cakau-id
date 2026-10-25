@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import {
   Pencil,
   KeyRound,
+  Trash2,
   Check,
   Ban,
   UserCheck,
@@ -59,6 +60,26 @@ export default function Users() {
           ? `User ${u.name} telah diaktifkan`
           : `User ${u.name} telah diblokir`,
       );
+      list.reload();
+    }
+  };
+
+  const deleteUser = async (u) => {
+    if (u.role === "admin") {
+      return toast.error("Akun administrator tidak dapat dihapus");
+    }
+    if (
+      !(await confirmToast(
+        `Hapus permanen akun user "${u.name}" (${u.email})?`,
+      ))
+    ) {
+      return;
+    }
+    const res = await request("delete", API_ENDPOINTS.ADMIN.USER(u.id), null, {
+      success: false,
+    });
+    if (res) {
+      toast.success(`User ${u.name} berhasil dihapus`);
       list.reload();
     }
   };
@@ -235,6 +256,16 @@ export default function Users() {
                   <span>Blokir</span>
                 </button>
               )}
+
+              {/* Hapus User */}
+              <button
+                className="btn-ghost !p-2 text-slate-600 hover:text-red-600 hover:bg-red-50"
+                onClick={() => deleteUser(u)}
+                title="Hapus User"
+                aria-label="Hapus User"
+              >
+                <Trash2 size={15} />
+              </button>
             </>
           )}
         </div>

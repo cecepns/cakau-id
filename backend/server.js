@@ -571,6 +571,57 @@ api.patch(
     res.json({ success: true, message: `Password ${u.name} berhasil diubah` });
   }),
 );
+api.delete(
+  "/admin/users/:id",
+  guard("admin"),
+  h(async (req, res) => {
+    const u = await one("SELECT * FROM users WHERE id=?", [req.params.id]);
+    if (!u) throw fail(404, "User tidak ditemukan");
+
+    if (u.id === req.user.id) {
+      throw fail(400, "Anda tidak dapat menghapus akun Anda sendiri");
+    }
+    if (u.role === "admin") {
+      throw fail(400, "Akun administrator tidak dapat dihapus");
+    }
+
+    const hasOrders = await one(
+      "SELECT id FROM orders WHERE buyer_id=? OR seller_id=? OR courier_id=? LIMIT 1",
+      [u.id, u.id, u.id],
+    );
+    if (hasOrders) {
+      throw fail(
+        400,
+        "User tidak dapat dihapus karena memiliki riwayat pesanan. Anda dapat memblokir user ini.",
+      );
+    }
+
+    const hasFinances = await one(
+      "SELECT id FROM topups WHERE user_id=? UNION SELECT id FROM withdrawals WHERE user_id=? LIMIT 1",
+      [u.id, u.id],
+    );
+    if (hasFinances) {
+      throw fail(
+        400,
+        "User tidak dapat dihapus karena memiliki riwayat topup/penarikan saldo. Anda dapat memblokir user ini.",
+      );
+    }
+
+    try {
+      await q("DELETE FROM users WHERE id=?", [u.id]);
+    } catch (err) {
+      if (err.code === "ER_ROW_IS_REFERENCED_2") {
+        throw fail(
+          400,
+          "User masih terhubung dengan data transaksi lain dan tidak dapat dihapus. Anda dapat memblokirnya.",
+        );
+      }
+      throw err;
+    }
+
+    res.json({ success: true, message: `User ${u.name} berhasil dihapus` });
+  }),
+);
 
 /* ---------- Rekening topup ---------- */
 api.get(
