@@ -30,10 +30,10 @@ Aplikasi mobile resmi **Cakau ID** berbasis React Native Expo dengan WebView yan
 
 File hasil build tersimpan di folder `mobile/release/`:
 
-1. **`mobile/release/cakau-id.apk`**
-   - File APK release yang sudah ditandatangani (signed).
+1. **`mobile/release/cakau-id.apk`** (~31 MB)
+   - File APK release yang sudah ditandatangani (signed) & terkompresi.
    - Siap langsung diinstal dan dites pada HP Android.
-2. **`mobile/release/cakau-id.aab`**
+2. **`mobile/release/cakau-id.aab`** (~24 MB)
    - Android App Bundle (AAB) resmi bertanda tangan.
    - Siap di-upload langsung ke **Google Play Console / Play Store**.
 3. **`mobile/release/cakau-release-key.keystore`**

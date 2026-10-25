@@ -6,21 +6,30 @@ import {
   BackHandler,
   Platform,
   Linking,
-  ActivityIndicator,
   Text,
   TouchableOpacity,
-  SafeAreaView,
+  ScrollView,
+  RefreshControl,
 } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
 const WEB_URL = 'https://cakau-id.vercel.app/';
 
-export default function App() {
+function MainApp() {
+  const insets = useSafeAreaInsets();
   const webViewRef = useRef(null);
   const [canGoBack, setCanGoBack] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [key, setKey] = useState(1);
+
+  // Pull to refresh state
+  const [refreshing, setRefreshing] = useState(false);
+  const [isAtTop, setIsAtTop] = useState(true);
+
+  // Top progress bar state (no persistent bottom spinner)
+  const [progress, setProgress] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Hardware back button handler on Android
   useEffect(() => {
@@ -72,16 +81,29 @@ export default function App() {
     return true;
   }, []);
 
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    setHasError(false);
+    if (webViewRef.current) {
+      webViewRef.current.reload();
+    }
+    // Safety fallback timeout
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 2500);
+  }, []);
+
   const handleRetry = () => {
     setHasError(false);
-    setLoading(true);
+    setIsLoading(true);
+    setProgress(0.1);
     setKey((prev) => prev + 1);
   };
 
-  // Injected JS to ensure Service Workers & dynamic updates check immediately
+  // Injected JS for scroll detection and Service Worker updates
   const injectedJavaScript = `
     (function() {
-      // Force service worker update check if present
+      // 1. Force service worker update check
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(regs) {
           for (var r of regs) {
@@ -89,78 +111,157 @@ export default function App() {
           }
         });
       }
+
+      // 2. Detect scroll position for reliable pull-to-refresh
+      var lastAtTop = true;
+      function checkScroll() {
+        var top = window.scrollY || document.documentElement.scrollTop || 0;
+        var atTop = top <= 2;
+        if (atTop !== lastAtTop) {
+          lastAtTop = atTop;
+          if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'SCROLL_POSITION',
+              isAtTop: atTop
+            }));
+          }
+        }
+      }
+
+      window.addEventListener('scroll', checkScroll, { passive: true });
+      document.addEventListener('scroll', checkScroll, { passive: true });
     })();
     true;
   `;
 
+  const handleMessage = (event) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data && data.type === 'SCROLL_POSITION') {
+        setIsAtTop(data.isAtTop);
+      }
+    } catch (_) {}
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View
+      style={[
+        styles.safeArea,
+        {
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
+          paddingLeft: insets.left,
+          paddingRight: insets.right,
+        },
+      ]}
+    >
       <StatusBar
         barStyle="dark-content"
         backgroundColor="#ffffff"
         translucent={false}
       />
 
-      <View style={styles.container}>
-        <WebView
-          key={key}
-          ref={webViewRef}
-          source={{
-            uri: WEB_URL,
-            headers: {
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              Pragma: 'no-cache',
-              Expires: '0',
-            },
-          }}
-          // Anti-Cache & Auto Update Settings
-          cacheEnabled={false}
-          cacheMode="LOAD_NO_CACHE"
-          incognito={false}
-          sharedCookiesEnabled={true}
-          thirdPartyCookiesEnabled={true}
-          // Features & Hardware capabilities
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          geolocationEnabled={true}
-          allowFileAccess={true}
-          allowFileAccessFromFileURLs={true}
-          allowUniversalAccessFromFileURLs={true}
-          allowsFullscreenVideo={true}
-          mediaPlaybackRequiresUserAction={false}
-          mixedContentMode="always"
-          // Navigation & Loading
-          onNavigationStateChange={(navState) => {
-            setCanGoBack(navState.canGoBack);
-          }}
-          onLoadStart={() => {
-            setLoading(true);
-            setHasError(false);
-          }}
-          onLoadEnd={() => {
-            setLoading(false);
-          }}
-          onError={() => {
-            setLoading(false);
-            setHasError(true);
-          }}
-          onHttpError={(syntheticEvent) => {
-            const { statusCode } = syntheticEvent.nativeEvent;
-            if (statusCode >= 400) {
-              // Only flag error on primary page failure
-            }
-          }}
-          onShouldStartLoadWithRequest={handleShouldStartLoad}
-          injectedJavaScript={injectedJavaScript}
-          style={styles.webview}
-        />
+      {/* Slim Top Progress Bar (Replaces persistent bottom spinner) */}
+      {isLoading && progress < 1 && (
+        <View style={styles.progressBarTrack}>
+          <View
+            style={[
+              styles.progressBarFill,
+              { width: `${Math.max(progress * 100, 10)}%` },
+            ]}
+          />
+        </View>
+      )}
 
-        {/* Loading Indicator */}
-        {loading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#047857" />
-          </View>
-        )}
+      <View style={styles.container}>
+        <ScrollView
+          style={styles.scrollContainer}
+          contentContainerStyle={styles.scrollContainer}
+          scrollEnabled={isAtTop}
+          bounces={true}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              enabled={isAtTop}
+              colors={['#047857']}
+              tintColor="#047857"
+              progressViewOffset={10}
+            />
+          }
+        >
+          <WebView
+            key={key}
+            ref={webViewRef}
+            source={{
+              uri: WEB_URL,
+              headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                Pragma: 'no-cache',
+                Expires: '0',
+              },
+            }}
+            // Anti-Cache & Auto Update Settings
+            cacheEnabled={false}
+            cacheMode="LOAD_NO_CACHE"
+            incognito={false}
+            sharedCookiesEnabled={true}
+            thirdPartyCookiesEnabled={true}
+            // Features & Hardware capabilities
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            geolocationEnabled={true}
+            allowFileAccess={true}
+            allowFileAccessFromFileURLs={true}
+            allowUniversalAccessFromFileURLs={true}
+            allowsFullscreenVideo={true}
+            mediaPlaybackRequiresUserAction={false}
+            mixedContentMode="always"
+            // Scroll handling for Pull-To-Refresh
+            onScroll={(e) => {
+              const y = e.nativeEvent.contentOffset.y;
+              if (y <= 2) {
+                setIsAtTop(true);
+              } else if (isAtTop) {
+                setIsAtTop(false);
+              }
+            }}
+            // Navigation & Progress
+            onNavigationStateChange={(navState) => {
+              setCanGoBack(navState.canGoBack);
+            }}
+            onLoadProgress={({ nativeEvent }) => {
+              setProgress(nativeEvent.progress);
+              if (nativeEvent.progress >= 1) {
+                setIsLoading(false);
+                setRefreshing(false);
+              }
+            }}
+            onLoadStart={() => {
+              setIsLoading(true);
+              setHasError(false);
+            }}
+            onLoadEnd={() => {
+              setIsLoading(false);
+              setRefreshing(false);
+            }}
+            onError={() => {
+              setIsLoading(false);
+              setRefreshing(false);
+              setHasError(true);
+            }}
+            onHttpError={(syntheticEvent) => {
+              const { statusCode } = syntheticEvent.nativeEvent;
+              if (statusCode >= 500) {
+                setHasError(true);
+              }
+            }}
+            onShouldStartLoadWithRequest={handleShouldStartLoad}
+            onMessage={handleMessage}
+            injectedJavaScript={injectedJavaScript}
+            style={styles.webview}
+          />
+        </ScrollView>
 
         {/* Offline / Error Screen */}
         {hasError && (
@@ -175,7 +276,15 @@ export default function App() {
           </View>
         )}
       </View>
-    </SafeAreaView>
+    </View>
+  );
+}
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <MainApp />
+    </SafeAreaProvider>
   );
 }
 
@@ -188,16 +297,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
+  scrollContainer: {
+    flex: 1,
+  },
   webview: {
     flex: 1,
     backgroundColor: '#ffffff',
   },
-  loadingContainer: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
+  progressBarTrack: {
+    height: 3,
+    backgroundColor: '#e2e8f0',
+    width: '100%',
+    overflow: 'hidden',
+    zIndex: 99,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#047857',
   },
   errorContainer: {
     ...StyleSheet.absoluteFillObject,

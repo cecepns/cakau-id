@@ -76,7 +76,11 @@ export default function FloatingWhatsApp({
   );
 
   return (
-    <aside aria-label="Kontak dan WhatsApp" className="fixed bottom-6 right-6 z-50">
+    <aside
+      aria-label="Kontak dan WhatsApp"
+      className="fixed bottom-6 right-6 z-50"
+      style={{ bottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}
+    >
       {/* Popover Contact Us */}
       {isOpen && (
         <div
