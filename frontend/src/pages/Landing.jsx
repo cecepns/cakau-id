@@ -22,16 +22,34 @@ import { rupiah, stripHtml } from "@/utils/format";
 export default function Landing() {
   const { user } = useAuth();
 
-  // Settings
-  const [settings, setSettings] = useState({ price_per_km: 3000, fee_percent: 5 });
+  // Settings & Categories
+  const [settings, setSettings] = useState({
+    price_per_km: 3000,
+    fee_percent: 5,
+  });
+  const [categories, setCategories] = useState([]);
+  const [activeCat, setActiveCat] = useState("");
+
   useEffect(() => {
-    api.get(API_ENDPOINTS.SETTINGS)
-      .then(({ data }) => { if (data.data) setSettings(data.data); })
+    api
+      .get(API_ENDPOINTS.SETTINGS)
+      .then(({ data }) => {
+        if (data.data) setSettings(data.data);
+      })
+      .catch(() => {});
+    api
+      .get(API_ENDPOINTS.CATEGORIES, { params: { limit: 10 } })
+      .then(({ data }) => setCategories(data.data || []))
       .catch(() => {});
   }, []);
 
   // Featured products (latest 8 products)
-  const list = usePaginated(API_ENDPOINTS.PRODUCTS, { limit: 8, sortBy: "id", order: "desc" });
+  const list = usePaginated(API_ENDPOINTS.PRODUCTS, {
+    limit: 8,
+    sortBy: "id",
+    order: "desc",
+    ...(activeCat ? { category: activeCat } : {}),
+  });
 
   return (
     <div className="min-h-screen bg-white text-slate-800">
@@ -76,7 +94,10 @@ export default function Landing() {
               </h1>
 
               <p className="max-w-2xl text-base sm:text-lg lg:text-xl text-slate-600 leading-relaxed mx-auto lg:mx-0">
-                Solusi jual beli cerdas menghubungkan <strong>Pembeli</strong>, <strong>Penjual</strong>, dan <strong>Kurir</strong>. Bebas biaya transfer berulang, ongkir otomatis dari jarak GPS, dan saldo hanya terpotong setelah barang tiba.
+                Solusi jual beli cerdas menghubungkan <strong>Pembeli</strong>,{" "}
+                <strong>Penjual</strong>, dan <strong>Kurir</strong>. Bebas
+                biaya transfer berulang, ongkir otomatis dari jarak GPS, dan
+                saldo hanya terpotong setelah barang tiba.
               </p>
 
               {/* Big, bold CTA Buttons */}
@@ -137,7 +158,8 @@ export default function Landing() {
                 Produk Terbaru dari Toko Terverifikasi
               </h2>
               <p className="mt-1.5 text-sm sm:text-base text-slate-500">
-                Pesan langsung dengan saldo akun Anda dan perhitungan ongkir akurat.
+                Pesan langsung dengan saldo akun Anda dan perhitungan ongkir
+                akurat.
               </p>
             </div>
 
@@ -150,11 +172,44 @@ export default function Landing() {
             </Link>
           </div>
 
+          {/* Category Filter Pills on Landing */}
+          {categories.length > 0 && (
+            <div className="mb-8 flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+              <button
+                onClick={() => setActiveCat("")}
+                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition shrink-0 ${
+                  !activeCat
+                    ? "bg-brand-600 text-white shadow-md shadow-brand-600/25 ring-2 ring-brand-200"
+                    : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <span>Semua Kategori</span>
+              </button>
+              {categories.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() =>
+                    setActiveCat(activeCat === c.slug ? "" : c.slug)
+                  }
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition shrink-0 ${
+                    activeCat === c.slug
+                      ? "bg-brand-600 text-white shadow-md shadow-brand-600/25 ring-2 ring-brand-200"
+                      : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <span>{c.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Product Grid */}
           {list.loading ? (
             <div className="py-20 text-center">
               <Spinner />
-              <p className="mt-3 text-sm text-slate-500">Memuat produk pilihan...</p>
+              <p className="mt-3 text-sm text-slate-500">
+                Memuat produk pilihan...
+              </p>
             </div>
           ) : list.error ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-600">
@@ -195,10 +250,22 @@ export default function Landing() {
 
                       {/* Content */}
                       <div className="p-4 sm:p-5 space-y-2">
-                        <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 truncate">
-                          <Store size={13} className="text-brand-600 shrink-0" />
-                          <span className="truncate">{product.store_name || "Toko"}</span>
-                        </p>
+                        <div className="flex items-center justify-between gap-1 text-xs">
+                          <p className="flex items-center gap-1.5 font-semibold text-slate-500 truncate">
+                            <Store
+                              size={13}
+                              className="text-brand-600 shrink-0"
+                            />
+                            <span className="truncate">
+                              {product.store_name || "Toko"}
+                            </span>
+                          </p>
+                          {product.category_name && (
+                            <span className="text-[10px] font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-md shrink-0">
+                              {product.category_name}
+                            </span>
+                          )}
+                        </div>
                         <h3 className="line-clamp-2 text-sm sm:text-base font-bold text-slate-900 group-hover:text-brand-600 transition leading-snug">
                           {product.name}
                         </h3>
@@ -250,7 +317,8 @@ export default function Landing() {
               Ekosistem Transaksi Cakau ID
             </h2>
             <p className="mt-3 text-sm sm:text-base text-slate-600 leading-relaxed">
-              Setiap pihak saling terhubung dalam satu sistem yang aman, transparan, dan terukur secara otomatis.
+              Setiap pihak saling terhubung dalam satu sistem yang aman,
+              transparan, dan terukur secara otomatis.
             </p>
           </div>
 
@@ -263,16 +331,29 @@ export default function Landing() {
               <h3 className="text-lg font-bold text-slate-900">Pembeli</h3>
               <ul className="space-y-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
                 <li className="flex items-start gap-2">
-                  <CheckCircle2 size={16} className="text-brand-600 mt-0.5 shrink-0" />
+                  <CheckCircle2
+                    size={16}
+                    className="text-brand-600 mt-0.5 shrink-0"
+                  />
                   <span>Daftar WhatsApp & topup saldo via Bank / QRIS.</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <CheckCircle2 size={16} className="text-brand-600 mt-0.5 shrink-0" />
-                  <span>Ongkos kirim otomatis dihitung dari koordinat GPS.</span>
+                  <CheckCircle2
+                    size={16}
+                    className="text-brand-600 mt-0.5 shrink-0"
+                  />
+                  <span>
+                    Ongkos kirim otomatis dihitung dari koordinat GPS.
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <CheckCircle2 size={16} className="text-brand-600 mt-0.5 shrink-0" />
-                  <span>Saldo hanya terpotong saat pesanan Anda konfirmasi selesai.</span>
+                  <CheckCircle2
+                    size={16}
+                    className="text-brand-600 mt-0.5 shrink-0"
+                  />
+                  <span>
+                    Saldo hanya terpotong saat pesanan Anda konfirmasi selesai.
+                  </span>
                 </li>
               </ul>
             </div>
@@ -282,19 +363,37 @@ export default function Landing() {
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700 font-black text-lg">
                 2
               </div>
-              <h3 className="text-lg font-bold text-slate-900">Penjual (Seller)</h3>
+              <h3 className="text-lg font-bold text-slate-900">
+                Penjual (Seller)
+              </h3>
               <ul className="space-y-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
                 <li className="flex items-start gap-2">
-                  <CheckCircle2 size={16} className="text-indigo-600 mt-0.5 shrink-0" />
-                  <span>Wajib pasang pin koordinat GPS toko sebelum berjualan.</span>
+                  <CheckCircle2
+                    size={16}
+                    className="text-indigo-600 mt-0.5 shrink-0"
+                  />
+                  <span>
+                    Wajib pasang pin koordinat GPS toko sebelum berjualan.
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <CheckCircle2 size={16} className="text-indigo-600 mt-0.5 shrink-0" />
-                  <span>Unggah produk dengan multiple gambar & deskripsi kaya.</span>
+                  <CheckCircle2
+                    size={16}
+                    className="text-indigo-600 mt-0.5 shrink-0"
+                  />
+                  <span>
+                    Unggah produk dengan multiple gambar & deskripsi kaya.
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <CheckCircle2 size={16} className="text-indigo-600 mt-0.5 shrink-0" />
-                  <span>Terima pembayaran langsung ke saldo toko dan tarik kapan saja.</span>
+                  <CheckCircle2
+                    size={16}
+                    className="text-indigo-600 mt-0.5 shrink-0"
+                  />
+                  <span>
+                    Terima pembayaran langsung ke saldo toko dan tarik kapan
+                    saja.
+                  </span>
                 </li>
               </ul>
             </div>
@@ -304,19 +403,37 @@ export default function Landing() {
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-50 text-sky-700 font-black text-lg">
                 3
               </div>
-              <h3 className="text-lg font-bold text-slate-900">Kurir Pengantar</h3>
+              <h3 className="text-lg font-bold text-slate-900">
+                Kurir Pengantar
+              </h3>
               <ul className="space-y-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
                 <li className="flex items-start gap-2">
-                  <CheckCircle2 size={16} className="text-sky-600 mt-0.5 shrink-0" />
-                  <span>Pendaftaran kurir diverifikasi dan disetujui (ACC) oleh admin.</span>
+                  <CheckCircle2
+                    size={16}
+                    className="text-sky-600 mt-0.5 shrink-0"
+                  />
+                  <span>
+                    Pendaftaran kurir diverifikasi dan disetujui (ACC) oleh
+                    admin.
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <CheckCircle2 size={16} className="text-sky-600 mt-0.5 shrink-0" />
-                  <span>Ambil pengiriman pesanan yang siap & gunakan rute maps.</span>
+                  <CheckCircle2
+                    size={16}
+                    className="text-sky-600 mt-0.5 shrink-0"
+                  />
+                  <span>
+                    Ambil pengiriman pesanan yang siap & gunakan rute maps.
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <CheckCircle2 size={16} className="text-sky-600 mt-0.5 shrink-0" />
-                  <span>Unggah foto bukti tiba untuk menerima ongkir ke saldo kurir.</span>
+                  <CheckCircle2
+                    size={16}
+                    className="text-sky-600 mt-0.5 shrink-0"
+                  />
+                  <span>
+                    Unggah foto bukti tiba untuk menerima ongkir ke saldo kurir.
+                  </span>
                 </li>
               </ul>
             </div>
@@ -342,7 +459,8 @@ export default function Landing() {
                 Siap Berbelanja atau Membuka Toko Anda?
               </h2>
               <p className="text-sm sm:text-base !text-slate-300 leading-relaxed font-normal">
-                Daftar sekarang untuk menikmati ekosistem e-commerce berbasis saldo dengan ongkir transparan dan kurir terverifikasi.
+                Daftar sekarang untuk menikmati ekosistem e-commerce berbasis
+                saldo dengan ongkir transparan dan kurir terverifikasi.
               </p>
             </div>
 

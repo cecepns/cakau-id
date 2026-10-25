@@ -13,10 +13,17 @@ import {
   ArrowLeft,
   CheckCircle2,
   Package,
+  Tag,
 } from "lucide-react";
 import PublicNavbar from "@/components/PublicNavbar";
 import PublicFooter from "@/components/PublicFooter";
-import { Spinner, Button, Field, getPosition, WhatsAppIcon } from "@/components/ui";
+import {
+  Spinner,
+  Button,
+  Field,
+  getPosition,
+  WhatsAppIcon,
+} from "@/components/ui";
 import { useAuth } from "@/context/AuthContext";
 import { api, FILE_URL } from "@/utils/api";
 import { request } from "@/utils/request";
@@ -34,7 +41,10 @@ export default function ProductDetail() {
   const [activeImg, setActiveImg] = useState(0);
 
   // Settings for shipping rate
-  const [settings, setSettings] = useState({ price_per_km: 3000, fee_percent: 5 });
+  const [settings, setSettings] = useState({
+    price_per_km: 3000,
+    fee_percent: 5,
+  });
 
   // Order state
   const [qty, setQty] = useState(1);
@@ -101,18 +111,27 @@ export default function ProductDetail() {
     !isNaN(+orderForm.lng);
 
   const distanceKm = hasCoords
-    ? Math.round(calcKm(+sellerLat, +sellerLng, +orderForm.lat, +orderForm.lng) * 100) / 100
+    ? Math.round(
+        calcKm(+sellerLat, +sellerLng, +orderForm.lat, +orderForm.lng) * 100,
+      ) / 100
     : 0;
   const subtotal = product ? Number(product.price) * qty : 0;
-  const shippingCost = distanceKm > 0 ? Math.round(distanceKm * (settings.price_per_km || 3000)) : 0;
+  const shippingCost =
+    distanceKm > 0
+      ? Math.round(distanceKm * (settings.price_per_km || 3000))
+      : 0;
   const grandTotal = subtotal + shippingCost;
-  const hasZeroBalance = user?.role === "buyer" && Number(user?.balance || 0) <= 0;
-  const isBalanceInsufficient = user?.role === "buyer" && Number(user?.balance || 0) < grandTotal;
+  const hasZeroBalance =
+    user?.role === "buyer" && Number(user?.balance || 0) <= 0;
+  const isBalanceInsufficient =
+    user?.role === "buyer" && Number(user?.balance || 0) < grandTotal;
 
   const handleOrder = async (e) => {
     e.preventDefault();
     if (!user) {
-      toast("Silakan masuk dengan akun Pembeli terlebih dahulu", { icon: "ℹ️" });
+      toast("Silakan masuk dengan akun Pembeli terlebih dahulu", {
+        icon: "ℹ️",
+      });
       nav("/login");
       return;
     }
@@ -120,21 +139,25 @@ export default function ProductDetail() {
       return toast.error("Hanya akun Pembeli yang dapat melakukan pemesanan");
     }
     if (orderForm.lat === "" || orderForm.lng === "") {
-      return toast.error("Titik koordinat GPS pengiriman wajib diisi. Silakan klik 'Gunakan Titik Lokasi GPS Saya'");
+      return toast.error(
+        "Titik koordinat GPS pengiriman wajib diisi. Silakan klik 'Gunakan Titik Lokasi GPS Saya'",
+      );
     }
     if (hasZeroBalance) {
       return toast.error("Saldo Anda Rp0. Silakan topup terlebih dahulu");
     }
     if (isBalanceInsufficient) {
       return toast.error(
-        `Saldo tidak cukup. Total tagihan: ${rupiah(grandTotal)} (Termasuk ongkir kurir ${distanceKm} km: ${rupiah(shippingCost)}), saldo Anda saat ini: ${rupiah(user?.balance || 0)}`
+        `Saldo tidak cukup. Total tagihan: ${rupiah(grandTotal)} (Termasuk ongkir kurir ${distanceKm} km: ${rupiah(shippingCost)}), saldo Anda saat ini: ${rupiah(user?.balance || 0)}`,
       );
     }
     if (!orderForm.lat || !orderForm.lng) {
       return toast.error("Tentukan titik lokasi pengiriman dengan tombol GPS");
     }
     if (!orderForm.address.trim() || orderForm.address.trim().length < 8) {
-      return toast.error("Alamat pengiriman lengkap wajib diisi (minimal 8 karakter)");
+      return toast.error(
+        "Alamat pengiriman lengkap wajib diisi (minimal 8 karakter)",
+      );
     }
 
     setOrdering(true);
@@ -170,10 +193,17 @@ export default function ProductDetail() {
         <PublicNavbar />
         <div className="mx-auto max-w-3xl py-20 px-4 text-center">
           <div className="rounded-2xl border border-red-200 bg-red-50 p-8">
-            <h2 className="text-xl font-bold text-red-700">Produk Tidak Ditemukan</h2>
-            <p className="mt-2 text-sm text-red-600">{error || "Produk yang Anda cari tidak tersedia."}</p>
+            <h2 className="text-xl font-bold text-red-700">
+              Produk Tidak Ditemukan
+            </h2>
+            <p className="mt-2 text-sm text-red-600">
+              {error || "Produk yang Anda cari tidak tersedia."}
+            </p>
             <div className="mt-6">
-              <Link to="/products" className="btn-primary !py-2.5 !px-6 text-sm font-bold">
+              <Link
+                to="/products"
+                className="btn-primary !py-2.5 !px-6 text-sm font-bold"
+              >
                 Kembali ke Katalog Produk
               </Link>
             </div>
@@ -184,7 +214,10 @@ export default function ProductDetail() {
     );
   }
 
-  const images = Array.isArray(product.images) && product.images.length > 0 ? product.images : [];
+  const images =
+    Array.isArray(product.images) && product.images.length > 0
+      ? product.images
+      : [];
 
   return (
     <div className="min-h-screen bg-slate-50/40 text-slate-800 overflow-x-hidden w-full max-w-full">
@@ -197,9 +230,23 @@ export default function ProductDetail() {
             Beranda
           </Link>
           <ChevronRight size={13} className="text-slate-400 shrink-0" />
-          <Link to="/products" className="hover:text-brand-600 transition shrink-0">
+          <Link
+            to="/products"
+            className="hover:text-brand-600 transition shrink-0"
+          >
             Semua Produk
           </Link>
+          {product.category_name && (
+            <>
+              <ChevronRight size={13} className="text-slate-400 shrink-0" />
+              <Link
+                to={`/products?category=${product.category_slug || ""}`}
+                className="hover:text-brand-600 transition shrink-0"
+              >
+                {product.category_name}
+              </Link>
+            </>
+          )}
           <ChevronRight size={13} className="text-slate-400 shrink-0" />
           <span className="text-slate-800 font-semibold truncate max-w-[130px] sm:max-w-xs">
             {product.name}
@@ -240,7 +287,11 @@ export default function ProductDetail() {
                         : "border-slate-200 opacity-70 hover:opacity-100"
                     }`}
                   >
-                    <img src={FILE_URL + imgUrl} alt="" className="h-full w-full object-cover" />
+                    <img
+                      src={FILE_URL + imgUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
                   </button>
                 ))}
               </div>
@@ -254,15 +305,19 @@ export default function ProductDetail() {
                     <Store size={20} />
                   </div>
                   <div className="min-w-0">
-                    <h4 className="text-sm font-bold text-slate-900 truncate">{product.store_name}</h4>
-                    <p className="text-[11px] text-slate-500">Penjual Terverifikasi Cakau ID</p>
+                    <h4 className="text-sm font-bold text-slate-900 truncate">
+                      {product.store_name}
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Penjual Terverifikasi Cakau ID
+                    </p>
                   </div>
                 </div>
                 {product.seller_phone && (
                   <a
                     href={waLink(
                       product.seller_phone,
-                      `Halo ${product.store_name || "Kak"}, saya ingin bertanya seputar produk ${product.name} di Cakau ID: ${window.location.href}`
+                      `Halo ${product.store_name || "Kak"}, saya ingin bertanya seputar produk ${product.name} di Cakau ID: ${window.location.href}`,
                     )}
                     target="_blank"
                     rel="noreferrer"
@@ -277,8 +332,13 @@ export default function ProductDetail() {
 
               {product.seller_address && (
                 <div className="flex items-start gap-2 text-xs text-slate-600">
-                  <MapPin size={15} className="text-brand-600 shrink-0 mt-0.5" />
-                  <span className="leading-relaxed">{product.seller_address}</span>
+                  <MapPin
+                    size={15}
+                    className="text-brand-600 shrink-0 mt-0.5"
+                  />
+                  <span className="leading-relaxed">
+                    {product.seller_address}
+                  </span>
                 </div>
               )}
             </div>
@@ -288,6 +348,17 @@ export default function ProductDetail() {
           <div className="lg:col-span-7 space-y-5 sm:space-y-6 min-w-0">
             {/* Title & Price Header */}
             <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 lg:p-8 shadow-sm space-y-3">
+              {product.category_name && (
+                <div>
+                  <Link
+                    to={`/products?category=${product.category_slug || ""}`}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700 hover:bg-brand-100 transition"
+                  >
+                    <Tag size={12} />
+                    <span>{product.category_name}</span>
+                  </Link>
+                </div>
+              )}
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-900 leading-snug break-words">
                 {product.name}
               </h1>
@@ -303,10 +374,16 @@ export default function ProductDetail() {
 
               {/* Description */}
               <div className="pt-4 border-t border-slate-100 space-y-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Deskripsi Produk</h3>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Deskripsi Produk
+                </h3>
                 <div
                   className="prose prose-sm max-w-none text-slate-700 text-sm leading-relaxed [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5 break-words"
-                  dangerouslySetInnerHTML={{ __html: product.description || "<em>Belum ada deskripsi untuk produk ini.</em>" }}
+                  dangerouslySetInnerHTML={{
+                    __html:
+                      product.description ||
+                      "<em>Belum ada deskripsi untuk produk ini.</em>",
+                  }}
                 />
               </div>
             </div>
@@ -330,16 +407,26 @@ export default function ProductDetail() {
                     <ShieldCheck size={26} />
                   </div>
                   <div>
-                    <h4 className="text-base font-bold text-slate-900">Masuk untuk Melakukan Pemesanan</h4>
+                    <h4 className="text-base font-bold text-slate-900">
+                      Masuk untuk Melakukan Pemesanan
+                    </h4>
                     <p className="mt-1 text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
-                      Transaksi di Cakau ID menggunakan sistem saldo yang aman dan terpotong hanya saat pesanan telah Anda terima dengan baik.
+                      Transaksi di Cakau ID menggunakan sistem saldo yang aman
+                      dan terpotong hanya saat pesanan telah Anda terima dengan
+                      baik.
                     </p>
                   </div>
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-3 pt-2 w-full">
-                    <Link to="/login" className="btn-primary !py-3 !px-7 text-sm font-bold rounded-xl shadow w-full sm:w-auto text-center">
+                    <Link
+                      to="/login"
+                      className="btn-primary !py-3 !px-7 text-sm font-bold rounded-xl shadow w-full sm:w-auto text-center"
+                    >
                       Masuk ke Akun
                     </Link>
-                    <Link to="/register" className="btn-ghost !py-3 !px-6 text-sm font-bold rounded-xl w-full sm:w-auto text-center">
+                    <Link
+                      to="/register"
+                      className="btn-ghost !py-3 !px-6 text-sm font-bold rounded-xl w-full sm:w-auto text-center"
+                    >
                       Daftar Pembeli Baru
                     </Link>
                   </div>
@@ -347,9 +434,12 @@ export default function ProductDetail() {
               ) : user.role !== "buyer" ? (
                 /* Non-buyer Role View */
                 <div className="rounded-xl bg-amber-50 p-4 sm:p-5 text-sm text-amber-800 space-y-2">
-                  <p className="font-bold">Peran Anda Saat Ini: {user.role.toUpperCase()}</p>
+                  <p className="font-bold">
+                    Peran Anda Saat Ini: {user.role.toUpperCase()}
+                  </p>
                   <p className="text-xs leading-relaxed">
-                    Hanya akun dengan peran <strong>Pembeli (Buyer)</strong> yang dapat melakukan transaksi pemesanan produk.
+                    Hanya akun dengan peran <strong>Pembeli (Buyer)</strong>{" "}
+                    yang dapat melakukan transaksi pemesanan produk.
                   </p>
                 </div>
               ) : (
@@ -359,26 +449,46 @@ export default function ProductDetail() {
                   {hasZeroBalance ? (
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl bg-amber-50 p-3.5 sm:p-4 text-xs text-amber-800 border border-amber-200">
                       <div className="flex items-center gap-2">
-                        <AlertCircle size={18} className="text-amber-600 shrink-0" />
-                        <span>Saldo Anda saat ini Rp0. Silakan topup terlebih dahulu.</span>
+                        <AlertCircle
+                          size={18}
+                          className="text-amber-600 shrink-0"
+                        />
+                        <span>
+                          Saldo Anda saat ini Rp0. Silakan topup terlebih
+                          dahulu.
+                        </span>
                       </div>
-                      <Link to="/topups" className="font-bold underline text-amber-900 shrink-0 self-end sm:self-auto">
+                      <Link
+                        to="/topups"
+                        className="font-bold underline text-amber-900 shrink-0 self-end sm:self-auto"
+                      >
                         Topup Sekarang
                       </Link>
                     </div>
                   ) : isBalanceInsufficient ? (
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl bg-amber-50 p-3.5 sm:p-4 text-xs text-amber-800 border border-amber-200">
                       <div className="flex items-center gap-2">
-                        <AlertCircle size={18} className="text-amber-600 shrink-0" />
-                        <span>Saldo ({rupiah(user.balance)}) tidak cukup untuk total {rupiah(grandTotal)}.</span>
+                        <AlertCircle
+                          size={18}
+                          className="text-amber-600 shrink-0"
+                        />
+                        <span>
+                          Saldo ({rupiah(user.balance)}) tidak cukup untuk total{" "}
+                          {rupiah(grandTotal)}.
+                        </span>
                       </div>
-                      <Link to="/topups" className="font-bold underline text-amber-900 shrink-0 self-end sm:self-auto">
+                      <Link
+                        to="/topups"
+                        className="font-bold underline text-amber-900 shrink-0 self-end sm:self-auto"
+                      >
                         Isi Saldo
                       </Link>
                     </div>
                   ) : (
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-xs text-emerald-800 border border-emerald-200">
-                      <span>Saldo Anda: <strong>{rupiah(user.balance)}</strong></span>
+                      <span>
+                        Saldo Anda: <strong>{rupiah(user.balance)}</strong>
+                      </span>
                       <span className="font-bold text-emerald-700 flex items-center gap-1">
                         <CheckCircle2 size={14} /> Saldo Mencukupi
                       </span>
@@ -387,7 +497,9 @@ export default function ProductDetail() {
 
                   {/* Quantity selector */}
                   <div className="flex flex-wrap items-center justify-between gap-2.5 py-2.5 border-b border-slate-100">
-                    <span className="text-sm font-semibold text-slate-700">Jumlah Beli</span>
+                    <span className="text-sm font-semibold text-slate-700">
+                      Jumlah Beli
+                    </span>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -401,7 +513,14 @@ export default function ProductDetail() {
                         min="1"
                         max={product.stock}
                         value={qty}
-                        onChange={(e) => setQty(Math.min(product.stock, Math.max(1, +e.target.value || 1)))}
+                        onChange={(e) =>
+                          setQty(
+                            Math.min(
+                              product.stock,
+                              Math.max(1, +e.target.value || 1),
+                            ),
+                          )
+                        }
                         className="input !w-16 sm:!w-20 !py-1 text-center font-bold text-sm"
                       />
                       <button
@@ -411,7 +530,9 @@ export default function ProductDetail() {
                       >
                         +
                       </button>
-                      <span className="text-xs text-slate-400 ml-1">maks. {product.stock}</span>
+                      <span className="text-xs text-slate-400 ml-1">
+                        maks. {product.stock}
+                      </span>
                     </div>
                   </div>
 
@@ -419,7 +540,9 @@ export default function ProductDetail() {
                   <Field
                     label="Alamat Lengkap Pengiriman"
                     value={orderForm.address}
-                    onChange={(e) => setOrderForm({ ...orderForm, address: e.target.value })}
+                    onChange={(e) =>
+                      setOrderForm({ ...orderForm, address: e.target.value })
+                    }
                     placeholder="Nama jalan, nomor rumah, RT/RW, kelurahan, kecamatan"
                     minLength={8}
                     required
@@ -427,7 +550,9 @@ export default function ProductDetail() {
 
                   {/* GPS Locator */}
                   <div className="space-y-1.5">
-                    <span className="text-xs font-semibold text-slate-700">Titik Koordinat GPS Anda</span>
+                    <span className="text-xs font-semibold text-slate-700">
+                      Titik Koordinat GPS Anda
+                    </span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <input
                         className="input bg-slate-50 !py-2 text-xs"
@@ -450,7 +575,9 @@ export default function ProductDetail() {
                       className="!py-2 text-xs w-full font-bold"
                     >
                       <Crosshair size={15} />
-                      {orderForm.lat ? "Perbarui Koordinat GPS Saya" : "Gunakan Titik Lokasi GPS Saya"}
+                      {orderForm.lat
+                        ? "Perbarui Koordinat GPS Saya"
+                        : "Gunakan Titik Lokasi GPS Saya"}
                     </Button>
                   </div>
 
@@ -458,7 +585,9 @@ export default function ProductDetail() {
                   <Field
                     label="Catatan Pengiriman (Opsional)"
                     value={orderForm.note}
-                    onChange={(e) => setOrderForm({ ...orderForm, note: e.target.value })}
+                    onChange={(e) =>
+                      setOrderForm({ ...orderForm, note: e.target.value })
+                    }
                     placeholder="Contoh: Titip di pos satpam, warna biru, dll."
                   />
 
@@ -474,8 +603,8 @@ export default function ProductDetail() {
                         {distanceKm > 0
                           ? `${distanceKm} km`
                           : !orderForm.lat || !orderForm.lng
-                          ? "Atur GPS Anda"
-                          : "0 km"}
+                            ? "Atur GPS Anda"
+                            : "0 km"}
                       </span>
                     </div>
                     <div className="flex justify-between text-slate-600">
@@ -491,19 +620,28 @@ export default function ProductDetail() {
 
                     {distanceKm > 50 && (
                       <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-[11px] text-amber-800 flex items-start gap-2 leading-relaxed">
-                        <AlertCircle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                        <AlertCircle
+                          size={15}
+                          className="text-amber-600 shrink-0 mt-0.5"
+                        />
                         <span>
-                          <strong>Perhatian Jarak Jauh:</strong> Jarak toko ke lokasi Anda adalah <strong>{distanceKm} km</strong>, sehingga biaya ongkir kurir disesuaikan ({rupiah(shippingCost)}).
+                          <strong>Perhatian Jarak Jauh:</strong> Jarak toko ke
+                          lokasi Anda adalah <strong>{distanceKm} km</strong>,
+                          sehingga biaya ongkir kurir disesuaikan (
+                          {rupiah(shippingCost)}).
                         </span>
                       </div>
                     )}
 
                     <div className="border-t border-slate-200 pt-2 flex justify-between font-black text-slate-900 text-sm sm:text-base">
                       <span>Total Biaya</span>
-                      <span className="text-brand-700">{rupiah(grandTotal)}</span>
+                      <span className="text-brand-700">
+                        {rupiah(grandTotal)}
+                      </span>
                     </div>
                     <p className="text-[11px] text-slate-400 pt-1 leading-relaxed">
-                      * Saldo pembeli hanya dipotong saat pesanan telah Anda terima dan Anda klik konfirmasi pesanan selesai.
+                      * Saldo pembeli hanya dipotong saat pesanan telah Anda
+                      terima dan Anda klik konfirmasi pesanan selesai.
                     </p>
                   </div>
 
@@ -516,8 +654,8 @@ export default function ProductDetail() {
                     {hasZeroBalance
                       ? "Saldo Rp0, Silakan Topup Terlebih Dahulu"
                       : isBalanceInsufficient
-                      ? "Saldo Tidak Cukup, Silakan Topup"
-                      : "Pesan Sekarang"}
+                        ? "Saldo Tidak Cukup, Silakan Topup"
+                        : "Pesan Sekarang"}
                   </Button>
                 </form>
               )}

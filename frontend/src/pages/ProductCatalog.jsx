@@ -1,9 +1,8 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Search,
   Store,
-  ShoppingBag,
   SlidersHorizontal,
   ChevronRight,
   Package,
@@ -13,16 +12,28 @@ import PublicFooter from "@/components/PublicFooter";
 import usePaginated from "@/hooks/usePaginated";
 import { Spinner, Empty } from "@/components/ui";
 import { API_ENDPOINTS } from "@/utils/endpoints";
-import { FILE_URL } from "@/utils/api";
+import { api, FILE_URL } from "@/utils/api";
 import { rupiah, stripHtml } from "@/utils/format";
 
 export default function ProductCatalog() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeCategory = searchParams.get("category") || "";
+
+  const [categories, setCategories] = useState([]);
   const [sortBy, setSortBy] = useState("id");
   const [orderDir, setOrderDir] = useState("desc");
+
+  useEffect(() => {
+    api
+      .get(API_ENDPOINTS.CATEGORIES, { params: { limit: 100 } })
+      .then(({ data }) => setCategories(data.data || []))
+      .catch(() => {});
+  }, []);
 
   const list = usePaginated(API_ENDPOINTS.PRODUCTS, {
     sortBy,
     order: orderDir,
+    ...(activeCategory ? { category: activeCategory } : {}),
   });
 
   return (
@@ -32,13 +43,24 @@ export default function ProductCatalog() {
       <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-6">
-          <Link to="/" className="hover:text-brand-600 transition">Beranda</Link>
+          <Link to="/" className="hover:text-brand-600 transition">
+            Beranda
+          </Link>
           <ChevronRight size={14} className="text-slate-400" />
           <span className="text-slate-800 font-semibold">Semua Produk</span>
+          {activeCategory && (
+            <>
+              <ChevronRight size={14} className="text-slate-400" />
+              <span className="text-brand-600 font-semibold capitalize">
+                {categories.find((c) => c.slug === activeCategory)?.name ||
+                  activeCategory}
+              </span>
+            </>
+          )}
         </nav>
 
         {/* Page Header */}
-        <div className="mb-8 flex flex-col md:flex-row md:items-end md:justify-between gap-6 pb-6 border-b border-slate-200">
+        <div className="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-6 pb-6 border-b border-slate-200">
           <div>
             <span className="inline-block rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700 mb-2">
               Katalog Lengkap
@@ -46,12 +68,19 @@ export default function ProductCatalog() {
             <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
               Katalog Produk Cakau ID
             </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Jelajahi produk berkualitas dari berbagai kategori dan toko lokal
+              pilihan.
+            </p>
           </div>
 
           {/* Search & Sort Controls */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative w-full sm:w-72">
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search
+                size={16}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+              />
               <input
                 className="input pl-10 !py-2.5 text-xs rounded-xl shadow-sm"
                 placeholder="Cari nama produk atau toko..."
@@ -61,7 +90,10 @@ export default function ProductCatalog() {
             </div>
 
             <div className="flex items-center gap-2">
-              <SlidersHorizontal size={16} className="text-slate-400 shrink-0" />
+              <SlidersHorizontal
+                size={16}
+                className="text-slate-400 shrink-0"
+              />
               <select
                 className="input !w-auto !py-2.5 text-xs rounded-xl font-medium shadow-sm"
                 value={`${sortBy}-${orderDir}`}
@@ -81,11 +113,70 @@ export default function ProductCatalog() {
           </div>
         </div>
 
+        {/* Category Filter Pills Bar */}
+        <div className="mb-8">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+            <button
+              onClick={() => {
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.delete("category");
+                  return next;
+                });
+              }}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition shrink-0 ${
+                !activeCategory
+                  ? "bg-brand-600 text-white shadow-md shadow-brand-600/30 ring-2 ring-brand-200"
+                  : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+              }`}
+            >
+              <span>Semua Kategori</span>
+            </button>
+
+            {categories.map((c) => {
+              const isActive = activeCategory === c.slug;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => {
+                    setSearchParams((prev) => {
+                      const next = new URLSearchParams(prev);
+                      if (isActive) next.delete("category");
+                      else next.set("category", c.slug);
+                      return next;
+                    });
+                  }}
+                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition shrink-0 ${
+                    isActive
+                      ? "bg-brand-600 text-white shadow-md shadow-brand-600/30 ring-2 ring-brand-200"
+                      : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+                  }`}
+                >
+                  <span>{c.name}</span>
+                  {c.total_products != null && (
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                        isActive
+                          ? "bg-white/25 text-white"
+                          : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {c.total_products}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Product Grid */}
         {list.loading ? (
           <div className="py-20 text-center">
             <Spinner />
-            <p className="mt-3 text-sm text-slate-500">Memuat katalog produk...</p>
+            <p className="mt-3 text-sm text-slate-500">
+              Memuat katalog produk...
+            </p>
           </div>
         ) : list.error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-600">
@@ -93,7 +184,13 @@ export default function ProductCatalog() {
           </div>
         ) : !list.rows.length ? (
           <div className="py-16">
-            <Empty text="Tidak ada produk yang cocok dengan pencarian Anda." />
+            <Empty
+              text={
+                activeCategory
+                  ? "Tidak ada produk dalam kategori ini."
+                  : "Tidak ada produk yang cocok dengan pencarian Anda."
+              }
+            />
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
@@ -126,10 +223,22 @@ export default function ProductCatalog() {
 
                     {/* Content */}
                     <div className="p-4 space-y-2">
-                      <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 truncate">
-                        <Store size={13} className="text-brand-600 shrink-0" />
-                        <span className="truncate">{product.store_name || "Toko"}</span>
-                      </p>
+                      <div className="flex items-center justify-between gap-1 text-xs">
+                        <p className="flex items-center gap-1.5 font-semibold text-slate-500 truncate">
+                          <Store
+                            size={13}
+                            className="text-brand-600 shrink-0"
+                          />
+                          <span className="truncate">
+                            {product.store_name || "Toko"}
+                          </span>
+                        </p>
+                        {product.category_name && (
+                          <span className="text-[10px] font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-md shrink-0">
+                            {product.category_name}
+                          </span>
+                        )}
+                      </div>
                       <h2 className="line-clamp-2 text-sm sm:text-base font-bold text-slate-900 group-hover:text-brand-600 transition leading-snug">
                         {product.name}
                       </h2>

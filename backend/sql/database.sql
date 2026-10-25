@@ -32,9 +32,25 @@ INSERT IGNORE INTO settings (`key`,`value`) VALUES
   ('contact_phone', '081234567890'),
   ('contact_address', 'Jl. Jenderal Sudirman No. 10, Jakarta Pusat 10220');
 
+CREATE TABLE IF NOT EXISTS categories (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL UNIQUE,
+  slug VARCHAR(120) NOT NULL UNIQUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_categories_slug (slug)
+) ENGINE=InnoDB;
+
+INSERT IGNORE INTO categories (`id`, `name`, `slug`) VALUES
+  (1, 'Makanan / Jajanan', 'makanan-jajanan'),
+  (2, 'UMKM', 'umkm'),
+  (3, 'Barang Baru', 'barang-baru'),
+  (4, 'Barang Bekas', 'barang-bekas'),
+  (5, 'Lainnya', 'lainnya');
+
 CREATE TABLE IF NOT EXISTS products (
   id INT AUTO_INCREMENT PRIMARY KEY,
   seller_id INT NOT NULL,
+  category_id INT NULL,
   name VARCHAR(160) NOT NULL,
   price DECIMAL(15,0) NOT NULL,
   stock INT NOT NULL DEFAULT 0,
@@ -42,7 +58,9 @@ CREATE TABLE IF NOT EXISTS products (
   images JSON NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
   INDEX idx_products_seller (seller_id),
+  INDEX idx_products_category (category_id),
   INDEX idx_products_stock (stock)
 ) ENGINE=InnoDB;
 
@@ -62,6 +80,7 @@ CREATE TABLE IF NOT EXISTS orders (
   lng DECIMAL(10,7) NOT NULL,
   note VARCHAR(255) NULL,
   proof VARCHAR(255) NULL,
+  is_paid TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (buyer_id) REFERENCES users(id),
   FOREIGN KEY (seller_id) REFERENCES users(id),

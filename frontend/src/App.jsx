@@ -8,6 +8,7 @@ import ProductDetail from "@/pages/ProductDetail";
 import About from "@/pages/About";
 import Auth from "@/pages/Auth";
 import Users from "@/pages/admin/Users";
+import Categories from "@/pages/admin/Categories";
 import AdminSettings from "@/pages/admin/Settings";
 import Contact from "@/pages/admin/Contact";
 import TopupAccounts from "@/pages/admin/TopupAccounts";
@@ -17,9 +18,15 @@ import Orders from "@/pages/Orders";
 import Products from "@/pages/seller/Products";
 import Store from "@/pages/seller/Store";
 
-const HOME = { admin: "/users", seller: "/seller/products", courier: "/orders", buyer: "/orders" };
+const HOME = {
+  admin: "/users",
+  seller: "/seller/products",
+  courier: "/orders",
+  buyer: "/orders",
+};
 const ROUTES = [
   ["/users", Users, ["admin"]],
+  ["/categories", Categories, ["admin"]],
   ["/settings", AdminSettings, ["admin"]],
   ["/contact", Contact, ["admin"]],
   ["/accounts", TopupAccounts, ["admin"]],
@@ -54,13 +61,21 @@ export default function App() {
       <Route path="/products" element={<ProductCatalog />} />
       <Route path="/products/:id" element={<ProductDetail />} />
       <Route path="/about" element={<About />} />
-      <Route path="/login" element={<Navigate to={HOME[user.role]} replace />} />
-      <Route path="/register" element={<Navigate to={HOME[user.role]} replace />} />
+      <Route
+        path="/login"
+        element={<Navigate to={HOME[user.role]} replace />}
+      />
+      <Route
+        path="/register"
+        element={<Navigate to={HOME[user.role]} replace />}
+      />
       <Route path="/shop" element={<Navigate to="/products" replace />} />
       <Route element={<Layout />}>
-        {ROUTES.filter(([, , roles]) => roles.includes(user.role)).map(([path, El]) => (
-          <Route key={path} path={path} element={<El />} />
-        ))}
+        {ROUTES.filter(([, , roles]) => roles.includes(user.role)).map(
+          ([path, El]) => (
+            <Route key={path} path={path} element={<El />} />
+          ),
+        )}
         <Route path="*" element={<Navigate to={HOME[user.role]} replace />} />
       </Route>
     </Routes>

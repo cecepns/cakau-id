@@ -1,5 +1,9 @@
 export const API_ENDPOINTS = {
-  AUTH: { LOGIN: "/auth/login", REGISTER: "/auth/register", PROFILE: "/auth/profile" },
+  AUTH: {
+    LOGIN: "/auth/login",
+    REGISTER: "/auth/register",
+    PROFILE: "/auth/profile",
+  },
   SETTINGS: "/settings",
   ADMIN: {
     SETTINGS: "/admin/settings",
@@ -14,6 +18,8 @@ export const API_ENDPOINTS = {
   TOPUP_ACCOUNTS: "/topup-accounts",
   TOPUPS: "/topups",
   WITHDRAWALS: "/withdrawals",
+  CATEGORIES: "/categories",
+  CATEGORY: (id) => `/categories/${id}`,
   PRODUCTS: "/products",
   PRODUCT: (id) => `/products/${id}`,
   ORDERS: "/orders",

@@ -158,12 +158,10 @@ const guard =
       next();
     } catch (e) {
       if (!e.status) console.error(e);
-      res
-        .status(e.status || 500)
-        .json({
-          success: false,
-          message: e.status ? e.message : "Terjadi kesalahan server",
-        });
+      res.status(e.status || 500).json({
+        success: false,
+        message: e.status ? e.message : "Terjadi kesalahan server",
+      });
     }
   };
 const optionalGuard = async (req, _res, next) => {
@@ -700,6 +698,130 @@ api.patch(
   }),
 );
 
+/* ---------- Categories ---------- */
+const slugify = (text) =>
+  String(text || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/[\s_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+api.get(
+  "/categories",
+  optionalGuard,
+  h(async (req, res) => {
+    const where = [],
+      params = [];
+    const result = await paginate(req, {
+      sel: "c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id=c.id) total_products",
+      from: "categories c",
+      where,
+      params,
+      search: ["c.name", "c.slug"],
+      sorts: ["c.id", "c.name", "c.created_at"],
+      def: "c.id",
+    });
+    res.json(result);
+  }),
+);
+
+api.get(
+  "/categories/:id",
+  optionalGuard,
+  h(async (req, res) => {
+    const cat = await one(
+      "SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id=c.id) total_products FROM categories c WHERE c.id=? OR c.slug=?",
+      [req.params.id, req.params.id],
+    );
+    if (!cat) throw fail(404, "Kategori tidak ditemukan");
+    res.json({ success: true, data: cat });
+  }),
+);
+
+api.post(
+  "/categories",
+  guard("admin"),
+  h(async (req, res) => {
+    const name = clean(req.body.name);
+    if (!name || name.length < 2)
+      throw fail(400, "Nama kategori minimal 2 karakter");
+    const slug = clean(req.body.slug) ? slugify(req.body.slug) : slugify(name);
+    if (!slug) throw fail(400, "Slug kategori tidak valid");
+
+    const existing = await one(
+      "SELECT id FROM categories WHERE name=? OR slug=?",
+      [name, slug],
+    );
+    if (existing) throw fail(400, "Nama atau slug kategori sudah digunakan");
+
+    const [r] = await q(
+      "INSERT INTO categories (name, slug) VALUES (?, ?)",
+      [name, slug],
+    );
+    res.json({
+      success: true,
+      message: "Kategori berhasil ditambahkan",
+      id: r.insertId,
+    });
+  }),
+);
+
+api.put(
+  "/categories/:id",
+  guard("admin"),
+  h(async (req, res) => {
+    const cat = await one("SELECT * FROM categories WHERE id=?", [
+      req.params.id,
+    ]);
+    if (!cat) throw fail(404, "Kategori tidak ditemukan");
+
+    const name = clean(req.body.name);
+    if (!name || name.length < 2)
+      throw fail(400, "Nama kategori minimal 2 karakter");
+    const slug = clean(req.body.slug) ? slugify(req.body.slug) : slugify(name);
+    if (!slug) throw fail(400, "Slug kategori tidak valid");
+
+    const existing = await one(
+      "SELECT id FROM categories WHERE (name=? OR slug=?) AND id!=?",
+      [name, slug, cat.id],
+    );
+    if (existing) throw fail(400, "Nama atau slug kategori sudah digunakan");
+
+    await q("UPDATE categories SET name=?, slug=? WHERE id=?", [
+      name,
+      slug,
+      cat.id,
+    ]);
+    res.json({ success: true, message: "Kategori berhasil diperbarui" });
+  }),
+);
+
+api.delete(
+  "/categories/:id",
+  guard("admin"),
+  h(async (req, res) => {
+    const cat = await one("SELECT * FROM categories WHERE id=?", [
+      req.params.id,
+    ]);
+    if (!cat) throw fail(404, "Kategori tidak ditemukan");
+
+    const prods = await one(
+      "SELECT COUNT(*) count FROM products WHERE category_id=?",
+      [cat.id],
+    );
+    if (prods.count > 0) {
+      throw fail(
+        400,
+        `Kategori tidak dapat dihapus karena masih digunakan oleh ${prods.count} produk`,
+      );
+    }
+
+    await q("DELETE FROM categories WHERE id=?", [cat.id]);
+    res.json({ success: true, message: "Kategori berhasil dihapus" });
+  }),
+);
+
 /* ---------- Products ---------- */
 api.get(
   "/products",
@@ -717,13 +839,28 @@ api.get(
       where.push("p.seller_id=?");
       params.push(clean(req.query.seller_id));
     }
+    if (req.query.category_id) {
+      where.push("p.category_id=?");
+      params.push(clean(req.query.category_id));
+    }
+    if (req.query.category) {
+      where.push("c.slug=?");
+      params.push(clean(req.query.category));
+    }
     const result = await paginate(req, {
-      sel: "p.*, u.store_name, u.phone seller_phone, u.address seller_address, u.lat seller_lat, u.lng seller_lng, u.lat, u.lng",
-      from: "products p JOIN users u ON u.id=p.seller_id",
+      sel: "p.*, u.store_name, u.phone seller_phone, u.address seller_address, u.lat seller_lat, u.lng seller_lng, u.lat, u.lng, c.name category_name, c.slug category_slug",
+      from: "products p JOIN users u ON u.id=p.seller_id LEFT JOIN categories c ON c.id=p.category_id",
       where,
       params,
-      search: ["p.name", "u.store_name"],
-      sorts: ["p.id", "p.price", "p.name", "p.stock", "p.created_at"],
+      search: ["p.name", "u.store_name", "c.name"],
+      sorts: [
+        "p.id",
+        "p.price",
+        "p.name",
+        "p.stock",
+        "p.category_id",
+        "p.created_at",
+      ],
       def: "p.id",
     });
     result.data = (result.data || []).map((p) => {
@@ -742,7 +879,7 @@ api.get(
   optionalGuard,
   h(async (req, res) => {
     const p = await one(
-      "SELECT p.*, u.store_name, u.phone seller_phone, u.address seller_address, u.lat seller_lat, u.lng seller_lng, u.lat, u.lng FROM products p JOIN users u ON u.id=p.seller_id WHERE p.id=?",
+      "SELECT p.*, u.store_name, u.phone seller_phone, u.address seller_address, u.lat seller_lat, u.lng seller_lng, u.lat, u.lng, c.name category_name, c.slug category_slug FROM products p JOIN users u ON u.id=p.seller_id LEFT JOIN categories c ON c.id=p.category_id WHERE p.id=?",
       [req.params.id],
     );
     if (!p) throw fail(404, "Produk tidak ditemukan");
@@ -755,11 +892,15 @@ api.get(
     res.json({ success: true, data: p });
   }),
 );
-const productBody = (req) => {
-  const { name, price, stock, description } = req.body;
+const productBody = async (req) => {
+  const { name, price, stock, description, category_id } = req.body;
   if (clean(name).length < 2) throw fail(400, "Nama produk wajib diisi");
   if (num(price) < 100) throw fail(400, "Harga tidak valid");
-  return [clean(name), num(price), num(stock), rich(description)];
+  const catId = num(category_id);
+  if (!catId) throw fail(400, "Kategori produk wajib dipilih");
+  const cat = await one("SELECT id FROM categories WHERE id=?", [catId]);
+  if (!cat) throw fail(400, "Kategori produk yang dipilih tidak ditemukan");
+  return [clean(name), num(price), num(stock), rich(description), catId];
 };
 const needStore = (req) => {
   if (!req.user.store_name || req.user.lat == null)
@@ -771,10 +912,10 @@ api.post(
   upload.array("images", 5),
   h(async (req, res) => {
     needStore(req);
-    const b = productBody(req);
+    const b = await productBody(req);
     if (!req.files?.length) throw fail(400, "Minimal 1 gambar produk");
     await q(
-      "INSERT INTO products (seller_id,name,price,stock,description,images) VALUES (?,?,?,?,?,?)",
+      "INSERT INTO products (seller_id,name,price,stock,description,category_id,images) VALUES (?,?,?,?,?,?,?)",
       [req.user.id, ...b, JSON.stringify(req.files.map(url))],
     );
     res.json({ success: true });
@@ -786,7 +927,7 @@ api.put(
   upload.array("images", 5),
   h(async (req, res) => {
     needStore(req);
-    const b = productBody(req);
+    const b = await productBody(req);
     const p = await one("SELECT * FROM products WHERE id=? AND seller_id=?", [
       req.params.id,
       req.user.id,
@@ -803,7 +944,7 @@ api.put(
     const imgs = [...keep, ...(req.files || []).map(url)].slice(0, 5);
     if (!imgs.length) throw fail(400, "Minimal 1 gambar produk");
     await q(
-      "UPDATE products SET name=?,price=?,stock=?,description=?,images=? WHERE id=?",
+      "UPDATE products SET name=?,price=?,stock=?,description=?,category_id=?,images=? WHERE id=?",
       [...b, JSON.stringify(imgs), p.id],
     );
     res.json({ success: true });
@@ -926,11 +1067,19 @@ api.post(
     if (buyerBalance < total)
       throw fail(
         400,
-        `Saldo tidak mencukupi untuk pesanan ini. Total tagihan: Rp ${total.toLocaleString("id-ID")} (Subtotal: Rp ${subtotal.toLocaleString("id-ID")} + Ongkir kurir ${dist} km: Rp ${shipping.toLocaleString("id-ID")}), sedangkan saldo Anda saat ini: Rp ${buyerBalance.toLocaleString("id-ID")}`
+        `Saldo tidak mencukupi untuk pesanan ini. Total tagihan: Rp ${total.toLocaleString("id-ID")} (Subtotal: Rp ${subtotal.toLocaleString("id-ID")} + Ongkir kurir ${dist} km: Rp ${shipping.toLocaleString("id-ID")}), sedangkan saldo Anda saat ini: Rp ${buyerBalance.toLocaleString("id-ID")}`,
       );
     const c = await pool.getConnection();
     try {
       await c.beginTransaction();
+      // Potong saldo pembeli langsung saat order dibuat (sistem escrow)
+      const [bRes] = await c.query(
+        "UPDATE users SET balance=balance-? WHERE id=? AND balance>=?",
+        [total, req.user.id, total],
+      );
+      if (!bRes.affectedRows)
+        throw fail(400, "Saldo Anda tidak mencukupi untuk membuat pesanan ini");
+
       for (const r of rows) {
         const [u] = await c.query(
           "UPDATE products SET stock=stock-? WHERE id=? AND stock>=?",
@@ -939,7 +1088,7 @@ api.post(
         if (!u.affectedRows) throw fail(400, `Stok ${r.p.name} tidak cukup`);
       }
       const [o] = await c.query(
-        "INSERT INTO orders (buyer_id,seller_id,subtotal,fee,shipping_cost,total,distance_km,address,lat,lng,note) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO orders (buyer_id,seller_id,subtotal,fee,shipping_cost,total,distance_km,address,lat,lng,note,is_paid) VALUES (?,?,?,?,?,?,?,?,?,?,?,1)",
         [
           req.user.id,
           seller.id,
@@ -980,10 +1129,14 @@ const FLOW = {
     cancel: ["pending", "cancelled"],
     complete: ["delivered", "completed"],
   },
+  admin: {
+    cancel: ["pending", "cancelled"],
+    complete: ["delivered", "completed"],
+  },
 };
 api.patch(
   "/orders/:id/action",
-  guard("seller", "buyer", "courier"),
+  guard("seller", "buyer", "courier", "admin"),
   upload.single("proof"),
   h(async (req, res) => {
     const { role, id } = req.user,
@@ -1019,34 +1172,71 @@ api.patch(
           await set("delivered", ",proof=?", [url(req.file)]);
         } else throw fail(400, "Aksi tidak valid");
       } else {
-        const rule = FLOW[role][action];
-        const mine = role === "seller" ? o.seller_id === id : o.buyer_id === id;
+        const rule = FLOW[role]?.[action];
+        const mine =
+          role === "admin"
+            ? true
+            : role === "seller"
+              ? o.seller_id === id
+              : o.buyer_id === id;
         if (!rule || !mine || o.status !== rule[0])
           throw fail(400, "Aksi tidak valid");
+
         if (action === "complete") {
-          const [d] = await c.query(
-            "UPDATE users SET balance=balance-? WHERE id=? AND balance>=?",
-            [o.total, o.buyer_id, o.total],
-          );
-          if (!d.affectedRows)
-            throw fail(
-              400,
-              "Saldo tidak mencukupi untuk menyelesaikan pesanan",
+          // Jika order lama belum terpotong saldonya saat order (is_paid === 0)
+          if (o.is_paid === 0) {
+            const [d] = await c.query(
+              "UPDATE users SET balance=balance-? WHERE id=? AND balance>=?",
+              [o.total, o.buyer_id, o.total],
             );
-          await c.query("UPDATE users SET balance=balance+? WHERE id=?", [
-            o.subtotal - o.fee,
-            o.seller_id,
-          ]);
-          await c.query("UPDATE users SET balance=balance+? WHERE id=?", [
-            o.shipping_cost,
-            o.courier_id,
-          ]);
-          await c.query(
-            "UPDATE users SET balance=balance+? WHERE role='admin' ORDER BY id LIMIT 1",
-            [o.fee],
-          );
+            if (!d.affectedRows)
+              throw fail(
+                400,
+                "Saldo pembeli tidak mencukupi untuk menyelesaikan pesanan",
+              );
+          }
+
+          const subtotal = Number(o.subtotal || 0);
+          const fee = Number(o.fee || 0);
+          const shippingCost = Number(o.shipping_cost || 0);
+          const sellerAmount = Math.max(0, subtotal - fee);
+
+          // 1. Masukkan saldo ke penjual (harga produk dikurangi fee admin)
+          if (sellerAmount > 0) {
+            await c.query("UPDATE users SET balance=balance+? WHERE id=?", [
+              sellerAmount,
+              o.seller_id,
+            ]);
+          }
+
+          // 2. Masukkan ongkir ke kurir
+          if (o.courier_id && shippingCost > 0) {
+            await c.query("UPDATE users SET balance=balance+? WHERE id=?", [
+              shippingCost,
+              o.courier_id,
+            ]);
+          }
+
+          // 3. Masukkan fee sistem ke admin
+          if (fee > 0) {
+            await c.query(
+              "UPDATE users SET balance=balance+? WHERE role='admin' ORDER BY id LIMIT 1",
+              [fee],
+            );
+          }
         }
-        if (rule[1] === "cancelled") await restock();
+
+        if (rule[1] === "cancelled") {
+          await restock();
+          // Kembalikan saldo ke pembeli (refund) jika order sudah terbayar
+          if (o.is_paid !== 0) {
+            await c.query("UPDATE users SET balance=balance+? WHERE id=?", [
+              o.total,
+              o.buyer_id,
+            ]);
+          }
+        }
+
         await set(rule[1]);
       }
       await c.commit();
@@ -1067,6 +1257,40 @@ app.use((e, _req, res, _next) =>
 );
 
 (async () => {
+  try {
+    await q(
+      "ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_paid TINYINT(1) NOT NULL DEFAULT 1",
+    );
+    await q(`CREATE TABLE IF NOT EXISTS categories (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(100) NOT NULL UNIQUE,
+      slug VARCHAR(120) NOT NULL UNIQUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_categories_slug (slug)
+    ) ENGINE=InnoDB`);
+    await q("ALTER TABLE categories DROP COLUMN IF EXISTS icon");
+    await q(
+      "ALTER TABLE products ADD COLUMN IF NOT EXISTS category_id INT NULL",
+    );
+    await q(
+      "ALTER TABLE products ADD INDEX IF NOT EXISTS idx_products_category (category_id)",
+    );
+    const defaults = [
+      ["Makanan / Jajanan", "makanan-jajanan"],
+      ["UMKM", "umkm"],
+      ["Barang Baru", "barang-baru"],
+      ["Barang Bekas", "barang-bekas"],
+      ["Lainnya", "lainnya"],
+    ];
+    for (const [name, slug] of defaults) {
+      await q(
+        "INSERT IGNORE INTO categories (name, slug) VALUES (?, ?)",
+        [name, slug],
+      );
+    }
+  } catch (e) {
+    console.warn("Notice: auto-migration check:", e.message);
+  }
   const email = process.env.ADMIN_EMAIL || "admin@cakau.id";
   const adminPassword = process.env.ADMIN_PASSWORD || "admin12345";
   const adminPhone = process.env.ADMIN_PHONE || "6281234567890";
