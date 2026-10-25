@@ -465,6 +465,112 @@ api.patch(
     res.json({ success: true });
   }),
 );
+api.put(
+  "/admin/users/:id",
+  guard("admin"),
+  h(async (req, res) => {
+    const u = await one("SELECT * FROM users WHERE id=?", [req.params.id]);
+    if (!u) throw fail(404, "User tidak ditemukan");
+
+    const name = clean(req.body.name);
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const phone = normPhone(req.body.phone);
+    const role = req.body.role;
+    const status = req.body.status;
+    const store_name = clean(req.body.store_name);
+    const password = req.body.password;
+
+    if (!name || name.length < 3) throw fail(400, "Nama minimal 3 karakter");
+    if (!/^\S+@\S+\.\S+$/.test(email)) throw fail(400, "Email tidak valid");
+    if (!PHONE.test(phone)) throw fail(400, "Nomor WhatsApp tidak valid");
+
+    if (u.role === "admin" && role !== "admin") {
+      throw fail(400, "Tidak dapat mengubah role admin utama");
+    }
+    if (role && !["admin", "seller", "courier", "buyer"].includes(role)) {
+      throw fail(400, "Role tidak valid");
+    }
+    if (status && !["pending", "active", "blocked"].includes(status)) {
+      throw fail(400, "Status tidak valid");
+    }
+
+    const emailExists = await one(
+      "SELECT id FROM users WHERE email=? AND id!=?",
+      [email, u.id],
+    );
+    if (emailExists) throw fail(409, "Email sudah digunakan oleh user lain");
+
+    let hashedPass = null;
+    if (password && String(password).trim().length > 0) {
+      if (String(password).length < 6)
+        throw fail(400, "Password minimal 6 karakter");
+      hashedPass = await bcrypt.hash(password, 10);
+    }
+
+    let balanceVal = u.balance;
+    if (req.body.balance !== undefined && req.body.balance !== "") {
+      const b = num(req.body.balance);
+      if (b >= 0) balanceVal = b;
+    }
+
+    const finalRole = role || u.role;
+    const finalStore =
+      finalRole === "seller" ? store_name || u.store_name : null;
+
+    if (hashedPass) {
+      await q(
+        "UPDATE users SET name=?, email=?, phone=?, role=?, status=?, balance=?, store_name=?, password=? WHERE id=?",
+        [
+          name,
+          email,
+          phone,
+          finalRole,
+          status || u.status,
+          balanceVal,
+          finalStore,
+          hashedPass,
+          u.id,
+        ],
+      );
+    } else {
+      await q(
+        "UPDATE users SET name=?, email=?, phone=?, role=?, status=?, balance=?, store_name=? WHERE id=?",
+        [
+          name,
+          email,
+          phone,
+          finalRole,
+          status || u.status,
+          balanceVal,
+          finalStore,
+          u.id,
+        ],
+      );
+    }
+
+    res.json({ success: true, message: "Data user berhasil diperbarui" });
+  }),
+);
+api.patch(
+  "/admin/users/:id/password",
+  guard("admin"),
+  h(async (req, res) => {
+    const u = await one("SELECT id, name FROM users WHERE id=?", [
+      req.params.id,
+    ]);
+    if (!u) throw fail(404, "User tidak ditemukan");
+
+    const password = String(req.body.password || "").trim();
+    if (!password || password.length < 6) {
+      throw fail(400, "Password minimal 6 karakter");
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+    await q("UPDATE users SET password=? WHERE id=?", [hashed, u.id]);
+
+    res.json({ success: true, message: `Password ${u.name} berhasil diubah` });
+  }),
+);
 
 /* ---------- Rekening topup ---------- */
 api.get(
