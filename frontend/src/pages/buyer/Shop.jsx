@@ -1,13 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
-import {
-  Crosshair,
-  Search,
-  Store,
-  AlertCircle,
-  ShoppingBag,
-} from "lucide-react";
+import { Crosshair, Search, AlertCircle, ShoppingBag } from "lucide-react";
 import usePaginated from "@/hooks/usePaginated";
 import {
   Button,
@@ -223,17 +217,13 @@ export default function Shop() {
                 )}
               </div>
               <div className="space-y-1 p-3">
-                <div className="flex items-center justify-between gap-1">
-                  <p className="flex items-center gap-1 text-xs text-slate-500 truncate">
-                    <Store size={12} className="text-brand-600 shrink-0" />
-                    <span className="truncate">{x.store_name}</span>
-                  </p>
-                  {x.category_name && (
-                    <span className="text-[10px] font-semibold text-brand-700 bg-brand-50 px-1.5 py-0.5 rounded shrink-0">
+                {x.category_name && (
+                  <div>
+                    <span className="inline-block text-[10px] font-semibold text-brand-700 bg-brand-50 px-1.5 py-0.5 rounded">
                       {x.category_name}
                     </span>
-                  )}
-                </div>
+                  </div>
+                )}
                 <p className="line-clamp-2 text-sm font-semibold group-hover:text-brand-600 transition">
                   {x.name}
                 </p>

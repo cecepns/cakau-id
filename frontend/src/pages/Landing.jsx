@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import heroImg from "@/assets/hero.png";
 import {
-  Store,
   ArrowRight,
   Sparkles,
   ShoppingBag,
@@ -250,22 +249,13 @@ export default function Landing() {
 
                       {/* Content */}
                       <div className="p-4 sm:p-5 space-y-2">
-                        <div className="flex items-center justify-between gap-1 text-xs">
-                          <p className="flex items-center gap-1.5 font-semibold text-slate-500 truncate">
-                            <Store
-                              size={13}
-                              className="text-brand-600 shrink-0"
-                            />
-                            <span className="truncate">
-                              {product.store_name || "Toko"}
-                            </span>
-                          </p>
-                          {product.category_name && (
-                            <span className="text-[10px] font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-md shrink-0">
+                        {product.category_name && (
+                          <div>
+                            <span className="inline-block text-[10px] font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-md">
                               {product.category_name}
                             </span>
-                          )}
-                        </div>
+                          </div>
+                        )}
                         <h3 className="line-clamp-2 text-sm sm:text-base font-bold text-slate-900 group-hover:text-brand-600 transition leading-snug">
                           {product.name}
                         </h3>
